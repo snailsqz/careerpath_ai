@@ -94,5 +94,5 @@ def save_to_csv(courses, filename="coursera_dataset.csv"):
     print(f"Saved {len(df)} courses to {filename}")
 
 if __name__ == "__main__":
-    courses = fetch_courses(max_pages=5)
+    courses = fetch_courses(max_pages=50)
     save_to_csv(courses)

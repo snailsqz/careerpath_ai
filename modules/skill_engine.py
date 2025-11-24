@@ -96,20 +96,26 @@ class SkillEngine:
         recommendations = []
         if self.db:
             for item in missing_skills_data:
-                # Use English term for search
                 search_query = item.get('search_term_en', '')
-                # Use User language for display
                 display_name = item.get('display_name', search_query)
-                
-                # Similarity Search with Score check
-                results = self.db._similarity_search_with_relevance_scores(search_query, k=1)
-                
+                print(f"[DEBUG] Search Term: {search_query}")
+                # 1. ล้างค่าตัวแปร list ก่อนเริ่มค้นหาใหม่ทุกครั้ง
                 valid_courses = []
-                for doc, score in results:
-                    # Threshold: 0.3 (Adjustable)
-                    if score < 0.3:
-                        continue
+                best_courses = [] 
+                
+                # 2. ค้นหา
+                # หมายเหตุ: ใช้ similarity_search_with_relevance_scores (ไม่มี _ นำหน้า)
+                try:
+                    results = self.db.similarity_search_with_relevance_scores(search_query, k=5)
+                except Exception as e:
+                    print(f"Search Error for {search_query}: {e}")
+                    results = []
 
+                # 3. กรองคะแนน
+                for doc, score in results:
+                    if score < 0.35:
+                        continue
+                    
                     valid_courses.append({
                         "title": doc.metadata.get("title"),
                         "url": doc.metadata.get("url"),
@@ -118,9 +124,14 @@ class SkillEngine:
                         "score": score
                     })
                 
+                # 4. เลือกตัวที่ดีที่สุด (เฉพาะรอบนี้)
+                if valid_courses:
+                    best_courses = sorted(valid_courses, key=lambda x: x['score'], reverse=True)[:2]
+                
+                # 5. บันทึกผล (ไม่ว่าจะมีคอร์สหรือไม่ ก็บันทึกไว้ user จะได้รู้ว่าเราพยายามหาแล้ว)
                 recommendations.append({
                     "skill_gap": display_name,
-                    "suggested_courses": valid_courses
+                    "suggested_courses": best_courses
                 })
 
         return {
