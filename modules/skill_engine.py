@@ -44,7 +44,6 @@ class SkillEngine:
             temperature=0
         )
 
-    # เปลี่ยนรับแค่ parameter เดียว คือข้อความจาก user
     def analyze_and_recommend(self, user_message):
         analysis_result = self._extract_and_analyze(user_message)
         
@@ -84,21 +83,27 @@ class SkillEngine:
         # แก้ Prompt ให้ทำหน้าที่ Extract + Analyze
         prompt = PromptTemplate(
             template="""
-            You are a Career Advisor AI.
+            You are an expert Career Advisor AI.
             
             User Message: "{user_message}"
             
             Task:
-            1. Extract the user's CURRENT role/skills from the message. (If not specified, assume 'General Beginner')
-            2. Extract the TARGET role/goal from the message.
-            3. Analyze the technical skill gap between Current and Target.
-            4. Identify the TOP 3 MOST CRITICAL missing skills.
+            1. Detect the language of the user's message (Thai or English).
+            2. Extract the user's CURRENT role/skills. (If not specified, assume 'General Beginner')
+            3. Extract the TARGET role/goal.
+            4. Analyze the technical skill gap between Current and Target.
+            5. Identify the TOP 3 MOST CRITICAL missing skills.
+            
+            IMPORTANT LANGUAGE RULES:
+            - If the user inputs in Thai, ALL VALUES in the JSON output MUST be in Thai.
+            - If the user inputs in English, use English.
+            - The JSON KEYS (e.g., "summary", "missing_skills") must ALWAYS be in English.
             
             Return ONLY a JSON object with this structure:
             {{
-                "current_role": "extracted current role",
-                "target_role": "extracted target role",
-                "summary": "Brief explanation of the gap",
+                "current_role": "extracted current role (in user's language)",
+                "target_role": "extracted target role (in user's language)",
+                "summary": "Brief explanation of the gap (in user's language)",
                 "missing_skills": ["Critical Skill 1", "Critical Skill 2", "Critical Skill 3"]
             }}
             """,
@@ -113,7 +118,7 @@ if __name__ == "__main__":
         engine = SkillEngine()
         
         # จำลอง Chat Input
-        user_input = "ผมอยากเป็น web dev แต่ตอนนี้ผมเป็นนักบัญชี ผมควรเพิ่มสกิลไรดี"
+        user_input = "ผมเป็น ai engineer อยากไปเป็น project manager ต้องทำยังไง"
         
         print(f"User asking: {user_input}\nProcessing...")
         result = engine.analyze_and_recommend(user_input)
