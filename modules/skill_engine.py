@@ -44,28 +44,83 @@ class SkillEngine:
             temperature=0
         )
 
+    def _extract_and_analyze(self, user_message):
+        parser = JsonOutputParser()
+        
+        prompt = PromptTemplate(
+            template="""
+            You are an expert Career Advisor AI.
+            
+            User Message: "{user_message}"
+            
+            Task:
+            1. Detect the language of the user's message.
+            2. Extract CURRENT role/skills. (Default: 'General Beginner')
+            3. Extract TARGET role/goal.
+            4. Analyze the technical skill gap.
+            5. Identify TOP 3 CRITICAL missing skills.
+            
+            IMPORTANT RULES:
+            - 'display_name': Must be in the USER'S language (Thai or English).
+            - 'search_term_en': Must ALWAYS be in English (for database search).
+            - 'summary': Must be in the USER'S language.
+            
+            Return ONLY a JSON object:
+            {{
+                "current_role": "...",
+                "target_role": "...",
+                "summary": "...",
+                "missing_skills": [
+                    {{
+                        "display_name": "Skill name in user language (e.g. การเขียนโปรแกรม)",
+                        "search_term_en": "Keywords in English (e.g. Python Programming)"
+                    }},
+                    {{
+                        "display_name": "...",
+                        "search_term_en": "..."
+                    }}
+                ]
+            }}
+            """,
+            input_variables=["user_message"]
+        )
+
+        chain = prompt | self.llm | parser
+        return chain.invoke({"user_message": user_message})
+
     def analyze_and_recommend(self, user_message):
         analysis_result = self._extract_and_analyze(user_message)
         
-        missing_skills = analysis_result.get("missing_skills", [])[:3]
+        missing_skills_data = analysis_result.get("missing_skills", [])[:3]
         
         recommendations = []
         if self.db:
-            for skill in missing_skills:
-                courses = self.db.similarity_search(skill, k=1)
+            for item in missing_skills_data:
+                # Use English term for search
+                search_query = item.get('search_term_en', '')
+                # Use User language for display
+                display_name = item.get('display_name', search_query)
                 
-                skill_courses = []
-                for doc in courses:
-                    skill_courses.append({
+                # Similarity Search with Score check
+                results = self.db._similarity_search_with_relevance_scores(search_query, k=1)
+                
+                valid_courses = []
+                for doc, score in results:
+                    # Threshold: 0.3 (Adjustable)
+                    if score < 0.3:
+                        continue
+
+                    valid_courses.append({
                         "title": doc.metadata.get("title"),
                         "url": doc.metadata.get("url"),
                         "level": doc.metadata.get("level"),
-                        "duration": doc.metadata.get("duration")
+                        "duration": doc.metadata.get("duration"),
+                        "score": score
                     })
                 
                 recommendations.append({
-                    "skill_gap": skill,
-                    "suggested_courses": skill_courses
+                    "skill_gap": display_name,
+                    "suggested_courses": valid_courses
                 })
 
         return {
@@ -76,42 +131,6 @@ class SkillEngine:
             "analysis_summary": analysis_result.get("summary"),
             "recommendations": recommendations
         }
-
-    def _extract_and_analyze(self, user_message):
-        parser = JsonOutputParser()
-        
-        # แก้ Prompt ให้ทำหน้าที่ Extract + Analyze
-        prompt = PromptTemplate(
-            template="""
-            You are an expert Career Advisor AI.
-            
-            User Message: "{user_message}"
-            
-            Task:
-            1. Detect the language of the user's message (Thai or English).
-            2. Extract the user's CURRENT role/skills. (If not specified, assume 'General Beginner')
-            3. Extract the TARGET role/goal.
-            4. Analyze the technical skill gap between Current and Target.
-            5. Identify the TOP 3 MOST CRITICAL missing skills.
-            
-            IMPORTANT LANGUAGE RULES:
-            - If the user inputs in Thai, ALL VALUES in the JSON output MUST be in Thai.
-            - If the user inputs in English, use English.
-            - The JSON KEYS (e.g., "summary", "missing_skills") must ALWAYS be in English.
-            
-            Return ONLY a JSON object with this structure:
-            {{
-                "current_role": "extracted current role (in user's language)",
-                "target_role": "extracted target role (in user's language)",
-                "summary": "Brief explanation of the gap (in user's language)",
-                "missing_skills": ["Critical Skill 1", "Critical Skill 2", "Critical Skill 3"]
-            }}
-            """,
-            input_variables=["user_message"]
-        )
-
-        chain = prompt | self.llm | parser
-        return chain.invoke({"user_message": user_message})
 
 if __name__ == "__main__":
     try:
