@@ -103,8 +103,6 @@ class SkillEngine:
                 valid_courses = []
                 best_courses = [] 
                 
-                # 2. ค้นหา
-                # หมายเหตุ: ใช้ similarity_search_with_relevance_scores (ไม่มี _ นำหน้า)
                 try:
                     results = self.db.similarity_search_with_relevance_scores(search_query, k=5)
                 except Exception as e:
@@ -124,11 +122,19 @@ class SkillEngine:
                         "score": score
                     })
                 
-                # 4. เลือกตัวที่ดีที่สุด (เฉพาะรอบนี้)
                 if valid_courses:
                     best_courses = sorted(valid_courses, key=lambda x: x['score'], reverse=True)[:2]
+                else:
+                    # [เพิ่มตรงนี้] ถ้าหาไม่เจอเลย ให้สร้างลิงก์ค้นหาอัตโนมัติ
+                    encoded_query = search_query.replace(" ", "%20")
+                    best_courses = [{
+                        "title": f"Search '{display_name}' on Coursera",
+                        "url": f"https://www.coursera.org/search?query={encoded_query}",
+                        "level": "External Search",
+                        "duration": "-",
+                        "score": 0
+                    }]
                 
-                # 5. บันทึกผล (ไม่ว่าจะมีคอร์สหรือไม่ ก็บันทึกไว้ user จะได้รู้ว่าเราพยายามหาแล้ว)
                 recommendations.append({
                     "skill_gap": display_name,
                     "suggested_courses": best_courses
