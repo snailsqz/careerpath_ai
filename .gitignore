@@ -1,0 +1,9 @@
+.env
+
+__pycache__/
+*.py[cod]
+
+vector_store/
+
+.DS_Store
+Thumbs.db
