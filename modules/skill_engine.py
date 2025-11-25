@@ -5,6 +5,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 import os
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -99,7 +100,7 @@ class SkillEngine:
                 search_query = item.get('search_term_en', '')
                 display_name = item.get('display_name', search_query)
                 print(f"[DEBUG] Search Term: {search_query}")
-                # 1. ล้างค่าตัวแปร list ก่อนเริ่มค้นหาใหม่ทุกครั้ง
+
                 valid_courses = []
                 best_courses = [] 
                 
@@ -109,16 +110,22 @@ class SkillEngine:
                     print(f"Search Error for {search_query}: {e}")
                     results = []
 
-                # 3. กรองคะแนน
                 for doc, score in results:
-                    if score < 0.35:
+                    if score < 0.5:
                         continue
                     
+                    raw_duration = str(doc.metadata.get("duration", ""))
+                    
+                    if raw_duration.lower() == 'nan' or not raw_duration:
+                        display_duration = "Self-paced"
+                    else:
+                        display_duration = raw_duration
+
                     valid_courses.append({
                         "title": doc.metadata.get("title"),
                         "url": doc.metadata.get("url"),
                         "level": doc.metadata.get("level"),
-                        "duration": doc.metadata.get("duration"),
+                        "duration": display_duration, # ใช้ค่าใหม่ที่แก้แล้ว
                         "score": score
                     })
                 
@@ -153,13 +160,11 @@ if __name__ == "__main__":
     try:
         engine = SkillEngine()
         
-        # จำลอง Chat Input
         user_input = "ผมเป็น ai engineer อยากไปเป็น project manager ต้องทำยังไง"
         
         print(f"User asking: {user_input}\nProcessing...")
         result = engine.analyze_and_recommend(user_input)
         
-        import json
         print(json.dumps(result, indent=2, ensure_ascii=False))
         
     except ValueError as e:

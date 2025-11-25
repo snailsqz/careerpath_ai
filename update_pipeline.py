@@ -47,7 +47,7 @@ def run_pipeline():
     print("\n[1/2] Fetching Coursera Data...")
     try:
         # Fetch 50 pages (~5,000 courses)
-        coursera_data = fetch_courses(max_pages=50)
+        coursera_data = fetch_courses(max_pages=100)
         
         # Save to data folder
         save_to_data_folder(coursera_data, "coursera_dataset.csv")

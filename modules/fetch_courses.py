@@ -1,17 +1,24 @@
 import requests
 import pandas as pd
 import time
+import random
 
 def fetch_courses(limit_per_page=100, max_pages=5):
     base_url = "https://api.coursera.org/api/courses.v1"
     
     fields = "name,description,slug,level,primaryLanguages,workload,domainTypes,certificates"
     
+    # [เพิ่ม] Headers เพื่อปลอมตัวเป็น Browser
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
+    }
+
     all_courses = []
     start = 0
     page_count = 0
     
-    print(f"Starting fetch process...")
+    print(f"Starting fetch process (Stealth Mode)...")
     
     while page_count < max_pages:
         params = {
@@ -21,8 +28,15 @@ def fetch_courses(limit_per_page=100, max_pages=5):
         }
         
         try:
-            response = requests.get(base_url, params=params)
+            # [แก้ไข] ใส่ headers เข้าไปใน request
+            response = requests.get(base_url, params=params, headers=headers)
             
+            # [เพิ่ม] ดักจับ Error 429 (Rate Limit)
+            if response.status_code == 429:
+                print("Rate limit hit. Pausing for 60 seconds...")
+                time.sleep(60)
+                continue
+
             if response.status_code == 200:
                 data = response.json()
                 elements = data.get('elements', [])
@@ -67,7 +81,9 @@ def fetch_courses(limit_per_page=100, max_pages=5):
                 else:
                     break
                 
-                time.sleep(1)
+                # [แก้ไข] สุ่มเวลาพัก 2.0 - 5.0 วินาที (จากเดิม 1 วิ)
+                sleep_time = random.uniform(2.0, 5.0)
+                time.sleep(sleep_time)
                 
             else:
                 print(f"Error: {response.status_code}")
