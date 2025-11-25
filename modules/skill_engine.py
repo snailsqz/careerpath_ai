@@ -100,9 +100,9 @@ class SkillEngine:
             """,
             input_variables=["user_message"]
         )
-
+        safe_message = user_message.replace("{", "(").replace("}", ")")
         chain = prompt | self.llm | parser
-        return chain.invoke({"user_message": user_message})
+        return chain.invoke({"user_message": safe_message})
 
     def analyze_and_recommend(self, user_message):
         analysis_result = self._extract_and_analyze(user_message)

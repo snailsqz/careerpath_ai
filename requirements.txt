@@ -7,3 +7,4 @@ python-dotenv==1.2.1
 Requests==2.32.5
 sentence_transformers==5.1.2
 gradio==6.0.0
+#fastmcp==2.13.1 # If you want to use MCP features

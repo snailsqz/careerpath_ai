@@ -41,7 +41,7 @@ def career_advisor(user_message):
                 
                 courses = item.get('suggested_courses', [])
                 if courses:
-                    course = courses[0] 
+                    course = courses[0]                    
                     output_text += f"- **Course:** [{course['title']}]({course['url']})\n"
                     output_text += f"- **Duration:** {course['duration']}\n"
                 else:

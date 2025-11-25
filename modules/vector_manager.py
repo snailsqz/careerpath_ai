@@ -125,7 +125,7 @@ def update_database_incremental():
             "level": str(item.get('level', '')),
             "duration": str(item.get('duration', '')),
             "source": str(item.get('source', 'Unknown')),
-            "content_hash": current_hash # <--- กุญแจสำคัญ
+            "content_hash": current_hash 
         }
 
         # --- LOGIC การตัดสินใจ ---

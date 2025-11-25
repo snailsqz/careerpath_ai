@@ -4,6 +4,7 @@ __pycache__/
 *.py[cod]
 
 vector_store/
+user_feedback_logs/
 
 .DS_Store
 Thumbs.db
