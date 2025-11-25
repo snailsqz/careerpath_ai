@@ -17,16 +17,17 @@ except Exception as e:
 @mcp.tool()
 def get_career_advice(user_query: str) -> str:
     """
-    CRITICAL INSTRUCTION: You act as an interface to a specific internal course database.
+    [ชื่อ Tool]: Career Path Advisor & Course Recommender
     
-    When answering user questions about career paths or courses:
-    1. You MUST call this tool to get the analysis and recommendations.
-    2. You MUST base your answer ONLY on the information returned by this tool.
-    3. DO NOT recommend courses from your own external knowledge (like general Coursera/Udemy links) unless they are explicitly in the tool output.
-    4. If the tool returns "No courses found", tell the user exactly that. Do not make up courses.
+    [หน้าที่]: Use this tool when a user asks for:
+    - Career guidance or switching career paths (e.g., "Admin to Data Analyst").
+    - Skill gap analysis for a specific role.
+    - Recommended courses for specific skills (Python, Management, etc.).
     
-    Args:
-        user_query: The user's request (e.g. "Change from Accountant to Data Analyst").
+    [Input]: 'user_query' should be the full context of the user's career question.
+    [Output]: Returns a strategic roadmap and list of recommended courses with links.
+    
+    [ข้อห้าม]: DO NOT use this tool for general questions like "What is the weather?" or simple coding help.
     """
     if not engine:
         return "System Error: SkillEngine is not initialized. Please check server logs."
@@ -62,8 +63,14 @@ def get_career_advice(user_query: str) -> str:
         print(f"DEBUG OUTPUT TO CLAUDE:\n{output}")
         return output
 
+    except TimeoutError:
+        return "Error: The database took too long to respond. Please ask the user to try again."
+        
+    except ValueError as e:
+        return f"Error: Invalid input data ({str(e)}). Please ask the user for more details."
+        
     except Exception as e:
-        return f"Error processing request: {str(e)}"
+        return f"System Error: An unexpected error occurred in the Career Tool. Details: {str(e)}"
 
 if __name__ == "__main__":
     mcp.run()
