@@ -1,28 +1,65 @@
 import gradio as gr
 from modules.skill_engine import SkillEngine
 from dotenv import load_dotenv
-import json
+import time
 
 load_dotenv()
 engine = SkillEngine()
 
-def career_advisor(message):
+def career_advisor(user_message):
+    yield "*AI กำลังวิเคราะห์สกิลและค้นหาคอร์สเรียน... (อาจใช้เวลา 5-10 วินาที)*"
     try:
-        result = engine.analyze_and_recommend(message)
+        result = engine.analyze_and_recommend(user_message)
         
-        # Format Output ให้อ่านง่าย
+        intent = result.get('user_intent', {})
+        c_role = intent.get('detected_current_role', 'Unknown')
+        t_role = intent.get('detected_target_role', 'Unknown')
+        
+        output_text = f"CAREER GOAL: {c_role} ➔ {t_role}\n"
+        output_text += "---\n\n"
+        
+        output_text += "### STRATEGIC ROADMAP\n"
         summary = result.get('analysis_summary', '')
-        output_text = f"### Analysis\n{summary}\n\n### Recommended Courses\n"
+
+        clean_summary = summary.replace("**", "").replace("- Phase", "Phase").replace("- ระยะ", "ระยะ")
         
-        for item in result.get('recommendations', []):
-            output_text += f"**Missing Skill: {item['skill_gap']}**\n"
-            for course in item.get('suggested_courses', []):
-                output_text += f"- [{course['title']}]({course['url']}) ({course['duration']})\n"
-            output_text += "\n"
+        formatted_summary = clean_summary.replace("Phase", "\n\nPhase").replace("ระยะ", "\n\nระยะ")
+        
+        output_text += f"{formatted_summary}\n\n"
+        output_text += "---\n\n"
+        
+        output_text += "### RECOMMENDED LEARNING PATH (Step-by-Step)\n"
+        recommendations = result.get('recommendations', [])
+        
+        if not recommendations:
+            output_text += "*No specific recommendations found.*"
+        else:
+            for i, item in enumerate(recommendations, 1):
+                skill_name = item['skill_gap']
+                
+                output_text += f"#### STEP {i}: {skill_name}\n"
+                
+                courses = item.get('suggested_courses', [])
+                if courses:
+                    course = courses[0] 
+                    output_text += f"- **Course:** [{course['title']}]({course['url']})\n"
+                    output_text += f"- **Duration:** {course['duration']}\n"
+                else:
+                    output_text += "- *(Please search for this skill manually)*\n"
+                
+                output_text += "\n"
+
+        chunk_size = 50 
+        for i in range(0, len(output_text), chunk_size):
+            # ส่งข้อความทีละท่อนใหญ่ๆ
+            yield output_text[:i+chunk_size]
+            # ไม่ต้อง sleep หรือ sleep น้อยมากๆ
+            time.sleep(0.001) 
             
-        return output_text
+        yield output_text
+
     except Exception as e:
-        return f"Error: {str(e)}"
+        yield f"Error: {str(e)}"
 
 iface = gr.Interface(
     fn=career_advisor,
@@ -32,8 +69,7 @@ iface = gr.Interface(
     description="ระบบแนะนำคอร์สเรียนเพื่อปิด Skill Gap",
     flagging_options=["คำตอบมั่ว", "คำตอบดีมาก"],
     flagging_dir="user_feedback_logs"
-    
 )
 
 if __name__ == "__main__":
-    iface.launch()
+    iface.launch(theme=gr.themes.Soft())

@@ -55,16 +55,37 @@ class SkillEngine:
             User Message: "{user_message}"
             
             Task:
-            1. Detect the language of the user's message.
-            2. Extract CURRENT role/skills. (Default: 'General Beginner')
-            3. Extract TARGET role/goal.
-            4. Analyze the technical skill gap.
-            5. Identify TOP 3 CRITICAL missing skills.
+            1. STRICTLY Detect the language of the user's message.
+            2. Extract Current & Target roles.
+            3. Analyze the technical skill gap.
+            4. Create a "Strategic Action Roadmap".
+            5. Identify TOP 5 CRITICAL missing skills.
             
-            IMPORTANT RULES:
-            - 'display_name': Must be in the USER'S language (Thai or English).
-            - 'search_term_en': Must ALWAYS be in English (for database search).
-            - 'summary': Must be in the USER'S language.
+            ### LANGUAGE ENFORCEMENT RULES (CRITICAL) ###
+            - If the user writes in English, ALL output text MUST be in ENGLISH.
+            - If the user writes in Thai, ALL output text MUST be in THAI.
+            - DO NOT output other languages.
+            
+            ### SEARCH TERM RULES (CRITICAL) ###
+            - 'search_term_en': Must be specific and focused. Use ENGLISH only.
+            - BAD: "Node.js Python Java" (Do NOT list alternatives)
+            - BAD: "Server-side (Node.js)" (No brackets)
+            - BAD: "Linear Algebra Statistics Calculus" (Do NOT list multiple subjects)
+            - GOOD: "Mathematics for Machine Learning" (Use an Umbrella term)
+            - GOOD: "Node.js Backend Development" (Pick ONE best tool)
+            - RULE: If there are multiple choices, PICK THE SINGLE MOST SUITABLE ONE based on user's background.
+            - RULE: If the skill involves multiple topics (e.g. Math + Stats), use a broader category name like "Mathematics for AI".
+            
+            ### OUTPUT FORMAT RULES ###
+            - 'summary': Write a motivating roadmap in the DETECTED LANGUAGE.
+               Use bullet points for phases:
+               - Phase 1: Foundation
+               - Phase 2: Core Skills
+               - Phase 3: Advanced/Specialization
+            
+            - 'missing_skills': Extract exactly 5 skills. 
+               - 'display_name': In DETECTED LANGUAGE.
+               - 'search_term_en': Max 3-4 keywords per skill.
             
             Return ONLY a JSON object:
             {{
@@ -72,14 +93,8 @@ class SkillEngine:
                 "target_role": "...",
                 "summary": "...",
                 "missing_skills": [
-                    {{
-                        "display_name": "Skill name in user language (e.g. การเขียนโปรแกรม)",
-                        "search_term_en": "Keywords in English (e.g. Python Programming)"
-                    }},
-                    {{
-                        "display_name": "...",
-                        "search_term_en": "..."
-                    }}
+                    {{ "display_name": "...", "search_term_en": "..." }},
+                    ...
                 ]
             }}
             """,
@@ -92,7 +107,7 @@ class SkillEngine:
     def analyze_and_recommend(self, user_message):
         analysis_result = self._extract_and_analyze(user_message)
         
-        missing_skills_data = analysis_result.get("missing_skills", [])[:3]
+        missing_skills_data = analysis_result.get("missing_skills", [])[:5]
         
         recommendations = []
         if self.db:
@@ -105,13 +120,14 @@ class SkillEngine:
                 best_courses = [] 
                 
                 try:
-                    results = self.db.similarity_search_with_relevance_scores(search_query, k=5)
+                    results = self.db.similarity_search_with_relevance_scores(search_query, k=3)
                 except Exception as e:
                     print(f"Search Error for {search_query}: {e}")
                     results = []
 
                 for doc, score in results:
-                    if score < 0.5:
+                    print(f"   --> Found: [{score:.4f}] {doc.metadata.get('title')}")
+                    if score < 0.3:
                         continue
                     
                     raw_duration = str(doc.metadata.get("duration", ""))
@@ -147,7 +163,7 @@ class SkillEngine:
                     "suggested_courses": best_courses
                 })
 
-        return {
+        return {    
             "user_intent": {
                 "detected_current_role": analysis_result.get("current_role"),
                 "detected_target_role": analysis_result.get("target_role")

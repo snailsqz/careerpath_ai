@@ -7,34 +7,49 @@ from modules.skill_engine import SkillEngine
 load_dotenv()
 
 def print_result(result):
-    print("\n" + "="*50)
+    print("\n" + "="*60)
     
     intent = result.get('user_intent', {})
-    print(f"Current Role: {intent.get('detected_current_role')}")
-    print(f"Target Role:  {intent.get('detected_target_role')}")
-    print("-" * 50)
+    c_role = intent.get('detected_current_role', 'Unknown')
+    t_role = intent.get('detected_target_role', 'Unknown')
     
-    print(f"Summary: {result.get('analysis_summary')}")
-    print("-" * 50)
+    print(f"CAREER GOAL: {c_role}  >>>  {t_role}")
+    print("="*60)
     
+    # ส่วนที่ 1: แผนที่นำทาง (Strategy)
+    print("\n[ STRATEGIC ROADMAP ]")
+    summary = result.get('analysis_summary', '')
+    # จัด Format ให้สวยงาม ถ้ามีคำว่า Phase ให้ขึ้นบรรทัดใหม่
+    formatted_summary = summary.replace("Phase", "\n• Phase").replace("ระยะ", "\n• ระยะ")
+    print(formatted_summary.strip())
+    print("-" * 60)
+    
+    # ส่วนที่ 2: ลำดับการเรียน (Execution)
     recommendations = result.get('recommendations', [])
+    
     if not recommendations:
         print("No specific recommendations found.")
     else:
-        print(f"Found {len(recommendations)} critical skill gaps:\n")
+        print(f"\n[ RECOMMENDED LEARNING PATH (Step-by-Step) ]")
+        print(f"Follow this sequence to close your {len(recommendations)} skill gaps:\n")
+        
         for i, item in enumerate(recommendations, 1):
-            print(f"{i}. MISSING SKILL: {item['skill_gap']}")
+            skill_name = item['skill_gap']
+            
+            print(f"STEP {i}: {skill_name}") 
             
             courses = item.get('suggested_courses', [])
             if courses:
-                print(f"   Recommended Course: {courses[0]['title']}")
-                print(f"   Link: {courses[0]['url']}")
-                print(f"   Duration: {courses[0]['duration']}")
+                course = courses[0] # เอาแค่อันแรกที่คะแนนดีสุด
+                print(f"Course:   {course['title']}")
+                print(f"Link:     {course['url']}")
+                print(f"Duration: {course['duration']}")
             else:
-                print("   (No matching course found in database)")
-            print("")
+                print("(Please search for this skill manually)")
+            
+            print("   " + "." * 40 + "\n")
     
-    print("="*50 + "\n")
+    print("="*60 + "\n")
 
 def main():
     api_key = os.getenv("GOOGLE_API_KEY")
