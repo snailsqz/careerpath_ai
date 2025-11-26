@@ -32,7 +32,7 @@ def get_project_paths():
         
     return {
         "coursera": os.path.join(project_root, 'data', 'coursera_dataset.csv'),
-        "skilllane": os.path.join(project_root, 'data', 'skilllane_dataset.csv'),
+        # "skilllane": os.path.join(project_root, 'data', 'skilllane_dataset.csv'),
         "db": os.path.join(project_root, 'vector_store')
     }
 
@@ -51,13 +51,13 @@ def load_all_data_sources(paths):
             print(f"Error loading Coursera CSV: {e}")
 
     # 2. Load SkillLane
-    if os.path.exists(paths['skilllane']):
-        try:
-            df = pd.read_csv(paths['skilllane'])
-            all_items.extend(df.to_dict('records'))
-            print(f"Loaded {len(df)} items from SkillLane")
-        except Exception as e:
-            print(f"Error loading SkillLane CSV: {e}")
+    # if os.path.exists(paths['skilllane']):
+    #     try:
+    #         df = pd.read_csv(paths['skilllane'])
+    #         all_items.extend(df.to_dict('records'))
+    #         print(f"Loaded {len(df)} items from SkillLane")
+    #     except Exception as e:
+    #         print(f"Error loading SkillLane CSV: {e}")
             
     return all_items
 
@@ -123,6 +123,8 @@ def update_database_incremental():
             "title": item.get('title', ''),
             "url": item.get('url', ''),
             "level": str(item.get('level', '')),
+            "category": str(item.get('category', '')),
+            "image_url": str(item.get('image_url', '')),
             "duration": str(item.get('duration', '')),
             "source": str(item.get('source', 'Unknown')),
             "content_hash": current_hash 
@@ -158,9 +160,23 @@ def update_database_incremental():
 
     # Action 2: ADD / UPDATE (Chroma ใช้ .add_documents จะ Upsert ให้เอง)
     if docs_to_add:
-        print(f"Upserting {len(docs_to_add)} new/updated items...")
-        db.add_documents(docs_to_add, ids=ids_to_add)
-        print(f"Upsert complete.")
+        print(f"Found {len(docs_to_add)} items to upsert. Processing in batches...")
+        
+        # กำหนดขนาด Batch (แนะนำ 4000 เพื่อความปลอดภัย ไม่เกิน 5461 แน่นอน)
+        batch_size = 4000 
+        total_docs = len(docs_to_add)
+        
+        for i in range(0, total_docs, batch_size):
+            # ตัดแบ่งข้อมูล
+            batch_docs = docs_to_add[i : i + batch_size]
+            batch_ids = ids_to_add[i : i + batch_size]
+            
+            print(f"   ↳ Upserting batch {i//batch_size + 1} ({len(batch_docs)} items)...")
+            
+            # ยัดเข้า DB ทีละก้อน
+            db.add_documents(batch_docs, ids=batch_ids)
+            
+        print(f"Upsert complete ({total_docs} items).")
     else:
         print("No new or updated items found.")
 

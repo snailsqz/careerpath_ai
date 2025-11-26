@@ -3,10 +3,10 @@ import pandas as pd
 import time
 import random
 
-def fetch_courses(limit_per_page=100, max_pages=5):
+def fetch_courses(limit_per_page=100, max_pages=5, start_page_num=1):
     base_url = "https://api.coursera.org/api/courses.v1"
     
-    fields = "name,description,slug,level,primaryLanguages,workload,domainTypes,certificates"
+    fields = "name,description,slug,level,primaryLanguages,workload,domainTypes,certificates,photoUrl"
     
     # [เพิ่ม] Headers เพื่อปลอมตัวเป็น Browser
     headers = {
@@ -15,12 +15,14 @@ def fetch_courses(limit_per_page=100, max_pages=5):
     }
 
     all_courses = []
-    start = 0
-    page_count = 0
+    start = (start_page_num - 1) * limit_per_page
+    
+    current_page = start_page_num
+    pages_fetched = 0
     
     print(f"Starting fetch process (Stealth Mode)...")
     
-    while page_count < max_pages:
+    while pages_fetched < max_pages:
         params = {
             "start": start,
             "limit": limit_per_page,
@@ -68,17 +70,20 @@ def fetch_courses(limit_per_page=100, max_pages=5):
                         "duration": item.get("workload", "Self-paced"),
                         "category": category,
                         "certificate_type": cert_str,
-                        "url": f"https://www.coursera.org/learn/{item.get('slug')}"
+                        "url": f"https://www.coursera.org/learn/{item.get('slug')}",
+                        "image_url": item.get("photoUrl")
                     }
                     all_courses.append(course_info)
                     filtered_count += 1
                 
-                print(f"Page {page_count + 1}: Kept {filtered_count} courses.")
+                print(f"Page {current_page}: Fetched {len(elements)} items (Kept {filtered_count}).")
                 
                 if 'paging' in data and 'next' in data['paging']:
                     start = int(data['paging']['next'])
-                    page_count += 1
+                    current_page += 1
+                    pages_fetched += 1
                 else:
+                    print("End of catalog reached.")
                     break
                 
                 # [แก้ไข] สุ่มเวลาพัก 2.0 - 5.0 วินาที (จากเดิม 1 วิ)
@@ -110,5 +115,5 @@ def save_to_csv(courses, filename="coursera_dataset.csv"):
     print(f"Saved {len(df)} courses to {filename}")
 
 if __name__ == "__main__":
-    courses = fetch_courses(max_pages=50)
+    courses = fetch_courses(max_pages=10)
     save_to_csv(courses)

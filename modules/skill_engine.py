@@ -141,14 +141,15 @@ class SkillEngine:
                         "title": doc.metadata.get("title"),
                         "url": doc.metadata.get("url"),
                         "level": doc.metadata.get("level"),
-                        "duration": display_duration, # ใช้ค่าใหม่ที่แก้แล้ว
+                        "category": doc.metadata.get("category", "General"),
+                        "duration": display_duration,
+                        "image_url": doc.metadata.get("image_url", ""),
                         "score": score
                     })
                 
                 if valid_courses:
                     best_courses = sorted(valid_courses, key=lambda x: x['score'], reverse=True)[:2]
                 else:
-                    # [เพิ่มตรงนี้] ถ้าหาไม่เจอเลย ให้สร้างลิงก์ค้นหาอัตโนมัติ
                     encoded_query = search_query.replace(" ", "%20")
                     best_courses = [{
                         "title": f"Search '{display_name}' on Coursera",

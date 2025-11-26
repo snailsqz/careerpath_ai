@@ -54,7 +54,7 @@ def career_advisor(user_message):
             # ส่งข้อความทีละท่อนใหญ่ๆ
             yield output_text[:i+chunk_size]
             # ไม่ต้อง sleep หรือ sleep น้อยมากๆ
-            time.sleep(0.001) 
+            time.sleep(0.01) 
             
         yield output_text
 
