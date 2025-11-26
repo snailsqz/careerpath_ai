@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 from modules.skill_engine import SkillEngine
 from dotenv import load_dotenv
-import os
+import re
 
 load_dotenv()
 
@@ -32,33 +32,53 @@ def get_career_advice(user_query: str) -> str:
     if not engine:
         return "System Error: SkillEngine is not initialized. Please check server logs."
 
-    try:
+    try:   
         result = engine.analyze_and_recommend(user_query)
         
-        summary = result.get('analysis_summary', 'No summary provided.')
+        intent = result.get('user_intent', {})
+        c_role = intent.get('detected_current_role', 'Unknown')
+        t_role = intent.get('detected_target_role', 'Unknown')
         
-        output = f"--- CAREER ANALYSIS REPORT ---\n"
-        output += f"{summary}\n\n"
-        output += f"--- RECOMMENDED COURSES ---\n"
+        output = f"# CAREER GOAL: {c_role} -> {t_role}\n\n"
         
+        # 3. จัดการ Summary (ใช้ Regex ล้างขยะเหมือนใน Demo UI)
+        summary = result.get('analysis_summary', '')
+        
+        # ล้างตัวหนาและ Code Block
+        clean_summary = summary.replace("**", "").replace("```", "")
+        # ลบย่อหน้าเกิน
+        clean_summary = re.sub(r"^\s+", "", clean_summary, flags=re.MULTILINE)
+        # จัดหัวข้อ Phase สวยๆ
+        formatted_summary = re.sub(
+            r"(?:^|\n)\s*[\*\-•◦]?\s*(Phase|ระยะ)",
+            r"\n\n### \1",
+            clean_summary
+        )
+        
+        output += f"{formatted_summary.strip()}\n\n"
+        output += "---\n\n"
+        output += "### RECOMMENDED LEARNING PATH\n"
+        
+        # 4. จัดการ Course List
         recommendations = result.get('recommendations', [])
+        
         if not recommendations:
-            output += "No specific recommendations found based on the database.\n"
+            output += "No specific recommendations found in the database.\n"
         else:
             for i, item in enumerate(recommendations, 1):
-                skill = item.get('skill_gap', 'Unknown Skill')
-                output += f"{i}. Missing Skill: {skill}\n"
+                skill_name = item.get('skill_gap', 'Unknown Skill')
+                output += f"#### Step {i}: {skill_name}\n"
                 
                 courses = item.get('suggested_courses', [])
                 if courses:
                     course = courses[0]
-                    output += f"   - Course: {course['title']}\n"
-                    output += f"   - URL: {course['url']}\n"
-                    output += f"   - Duration: {course['duration']}\n"
+                    # ส่งกลับเป็น Markdown Link เพื่อให้ Claude แสดงผลสวยๆ
+                    output += f"- **Course:** [{course['title']}]({course['url']})\n"
+                    output += f"- **Duration:** {course['duration']}\n"
                 else:
-                    output += "   - No course found in database.\n"
-                output += "\n"
+                    output += "- (No specific course found in database)\n"
                 
+                output += "\n"
                 
         print(f"DEBUG OUTPUT TO CLAUDE:\n{output}")
         return output

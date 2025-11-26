@@ -2,6 +2,7 @@ import gradio as gr
 from modules.skill_engine import SkillEngine
 from dotenv import load_dotenv
 import time
+import re
 
 load_dotenv()
 engine = SkillEngine()
@@ -21,12 +22,18 @@ def career_advisor(user_message):
         output_text += "### STRATEGIC ROADMAP\n"
         summary = result.get('analysis_summary', '')
 
-        clean_summary = summary.replace("**", "").replace("- Phase", "Phase").replace("- ระยะ", "ระยะ")
-        
-        formatted_summary = clean_summary.replace("Phase", "\n\nPhase").replace("ระยะ", "\n\nระยะ")
+        clean_summary = summary.replace("**", "").replace("```", "")
+
+        clean_summary = re.sub(r"^\s+", "", clean_summary, flags=re.MULTILINE)
+
+        # 3. ใช้ Regex จัดการหัวข้อ Phase/ระยะ เหมือนเดิม
+        formatted_summary = re.sub(
+            r"(?:^|\n)\s*[\*\-•◦]?\s*(Phase|ระยะ)",
+            r"\n\n### \1",
+            clean_summary
+        )
         
         output_text += f"{formatted_summary}\n\n"
-        output_text += "---\n\n"
         
         output_text += "### RECOMMENDED LEARNING PATH (Step-by-Step)\n"
         recommendations = result.get('recommendations', [])
