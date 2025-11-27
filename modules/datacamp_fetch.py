@@ -2,11 +2,18 @@ from curl_cffi import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import json
-import os
 import time
 import random
+import hashlib
+import urllib.parse
 
-def fetch_datacamp_courses(max_limit=1000): # ตั้งเผื่อไว้เยอะๆ
+def clean_text_from_dict(data):
+    """Extract text from dictionary like {'en-US': '...'}"""
+    if isinstance(data, dict):
+        return data.get('en-US') or data.get('en') or list(data.values())[0]
+    return str(data) if data else ""
+
+def fetch_datacamp_courses(max_pages=20):
     base_url = "https://www.datacamp.com/courses-all"
     
     headers = {
@@ -15,20 +22,24 @@ def fetch_datacamp_courses(max_limit=1000): # ตั้งเผื่อไว�
 
     all_courses = []
     page = 1
-    total_pages = 1 # ค่าเริ่มต้น เดี๋ยวจะอัปเดตจากข้อมูลจริง
     
-    print(f"Starting fetch DataCamp (All Pages)...")
+    print(f"Starting fetch DataCamp (Robust Parser)...")
     
-    while page <= total_pages:
-        # ใส่ param page เข้าไป
-        params = {
-            "page": page
-        }
-        
+    while page <= max_pages:
+        # Use URL for pagination
+        if page == 1:
+            target_url = base_url
+        else:
+            target_url = f"{base_url}/page/{page}"
+            
         try:
             print(f"   Scraping Page {page}...", end="")
             
-            response = requests.get(base_url, params=params, headers=headers, impersonate="chrome")
+            response = requests.get(target_url, headers=headers, impersonate="chrome")
+            
+            if response.status_code == 404:
+                print(" -> End of pages.")
+                break
             
             if response.status_code != 200:
                 print(f" -> Error: {response.status_code}")
@@ -43,61 +54,68 @@ def fetch_datacamp_courses(max_limit=1000): # ตั้งเผื่อไว�
 
             json_data = json.loads(next_data_tag.string)
             
-            # เจาะหาข้อมูล (ตาม Key ที่คุณให้มาล่าสุด)
+            # Drill down to find hits
+            items = []
             try:
-                # เข้าไปที่ props -> pageProps
                 props = json_data.get('props', {}).get('pageProps', {})
-                
-                hits = props.get('hits', [])
-                
-                # หาจำนวนหน้าทั้งหมด (เพื่อเอามาคุม Loop)
-                # ปกติ Algolia จะมี key 'nbPages' หรือคำนวณจาก 'nbHits'
-                if 'nbPages' in props:
-                    total_pages = props['nbPages']
-                
-                # ถ้าหา nbPages ไม่เจอ ลองคำนวณเอง
-                elif 'nbHits' in props and page == 1:
-                    # สมมติหน้าละ 30
-                    import math
-                    total_pages = math.ceil(props['nbHits'] / 30)
-                    print(f" (Total items: {props['nbHits']} -> Est. Pages: {total_pages})")
+                # Path 1: Search results
+                items = props.get('hits', [])
+                # Path 2: Content list
+                if not items:
+                    items = props.get('content', {}).get('courses', [])
+                # Path 3: Algolia results
+                if not items:
+                    items = props.get('initialState', {}).get('hits', [])
+            except:
+                pass
 
-            except Exception as e:
-                print(f" -> Structure Error: {e}")
+            if not items:
+                print(" -> No items found on this page.")
                 break
 
-            if not hits:
-                print(" -> No more courses.")
-                break
-
-            # วนลูปเก็บข้อมูลในหน้านั้น
-            count_in_page = 0
-            for item in hits:
-                # Logic แกะข้อมูลเดิม
-                title_raw = item.get('title')
-                if isinstance(title_raw, dict):
-                    title = title_raw.get('en-US', 'Untitled')
-                else:
-                    title = title_raw
-
+            count_new = 0
+            for item in items:
+                # 1. Clean Title/Desc
+                title = clean_text_from_dict(item.get('title'))
                 if not title: continue
 
-                desc = item.get('summary') or item.get('excerpt') or title
+                desc = clean_text_from_dict(item.get('excerpt') or item.get('description') or item.get('summary') or title)
                 
-                technology = item.get('technology') or 'Data Science'
-                
+                # 2. Fix ID (Hash if missing)
+                raw_id = item.get('objectID') or item.get('id')
+                if raw_id:
+                    c_id = str(raw_id)
+                else:
+                    # Generate ID from Title
+                    c_id = hashlib.md5(title.encode()).hexdigest()[:10]
+
+                # 3. Fix URL (Fallback to search if no slug)
+                slug = item.get('slug') or item.get('relative_url') or item.get('url')
+                if slug:
+                    slug_str = str(slug)
+                    if slug_str.startswith('http'):
+                        course_url = slug_str
+                    elif slug_str.startswith('/'):
+                        course_url = f"https://www.datacamp.com{slug_str}"
+                    else:
+                        course_url = f"https://www.datacamp.com/{slug_str}"
+                else:
+                    # Fallback: Create Search Link
+                    encoded_title = urllib.parse.quote(title)
+                    course_url = f"https://www.datacamp.com/search?q={encoded_title}"
+
+                # Duration & Tech
                 duration_val = item.get('duration_hours')
                 duration = f"{duration_val} hours" if duration_val else "Self-paced"
+                technology = item.get('technology') or 'Data Science'
                 
-                # URL & ID
-                slug = item.get('slug') or item.get('url')
-                if slug and str(slug).startswith('http'):
-                    course_url = slug
-                else:
-                    course_url = f"https://www.datacamp.com{slug}" if slug else "https://www.datacamp.com"
-                
-                # ID (Algolia ใช้ objectID)
-                c_id = item.get('objectID') or item.get('id')
+                # Image
+                image_url = (
+                    item.get('image_url') or 
+                    item.get('cap_image_url') or 
+                    item.get('thumbnail_url') or
+                    ""
+                )
 
                 course_info = {
                     "id": f"dc_{c_id}",
@@ -107,56 +125,28 @@ def fetch_datacamp_courses(max_limit=1000): # ตั้งเผื่อไว�
                     "price": "Subscription",
                     "duration": str(duration),
                     "category": technology,
-                    "image_url": item.get('image_url') or item.get('cap_image_url'),
+                    "image_url": image_url,
                     "url": course_url,
                     "source": "DataCamp"
                 }
                 all_courses.append(course_info)
-                count_in_page += 1
+                count_new += 1
             
-            print(f" -> Got {count_in_page} items. (Total: {len(all_courses)})")
+            print(f" -> Got {count_new} items. (Total: {len(all_courses)})")
             
-            # เช็ค limit ที่เราตั้งเอง (เผื่อไม่อยากดึงหมด)
-            if len(all_courses) >= max_limit:
-                print("Reached user limit.")
-                break
-
             page += 1
-            time.sleep(random.uniform(1.5, 3.0)) # พักสักนิด
-
+            time.sleep(random.uniform(1.0, 2.0))
+            
         except Exception as e:
-            print(f"\nCritical Exception: {e}")
+            print(f"\nException: {e}")
             break
 
     return all_courses
 
-def save_to_csv(courses, filename="datacamp_dataset.csv"):
-    if not courses:
-        print("No data to save.")
-        return
-
-    current_file_path = os.path.abspath(__file__)
-    
-    modules_dir = os.path.dirname(current_file_path)
-    
-    project_root = os.path.dirname(modules_dir)
-    
-    data_dir = os.path.join(project_root, 'data')
-    
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
-        print(f"Created folder: {data_dir}")
-
-    full_path = os.path.join(data_dir, filename)
-    
-    df = pd.DataFrame(courses)
-    df.to_csv(full_path, index=False, encoding='utf-8-sig')
-    
-    print(f"Saved {len(df)} courses to: {full_path}")
-
 if __name__ == "__main__":
-    courses = fetch_datacamp_courses(max_limit=1000)
+    # Fetch 10 pages
+    courses = fetch_datacamp_courses(max_pages=25)
     if courses:
         df = pd.DataFrame(courses)
-        print(f"\nExtracted {len(df)} courses successfully!")
-        save_to_csv(courses, "datacamp_dataset.csv")
+        df.to_csv("datacamp_dataset.csv", index=False, encoding='utf-8-sig')
+        print(f"\nCompleted! Saved {len(df)} courses.")

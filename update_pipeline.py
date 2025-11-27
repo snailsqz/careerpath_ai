@@ -34,16 +34,16 @@ def save_to_data_folder(data_list, filename):
 
 def run_pipeline():
     print("="*50)
-    print("STARTING UPDATE PIPELINE (COURSERA ONLY)")
+    print("STARTING UPDATE PIPELINEs")
     print("="*50)
 
-    print("\n[1/5] Fetching Coursera Data...")
-    try:
-        coursera_data = fetch_courses(max_pages=180, start_page_num=1)
-        save_to_data_folder(coursera_data, "coursera_dataset.csv")
+    # print("\n[1/5] Fetching Coursera Data...")
+    # try:
+    #     coursera_data = fetch_courses(max_pages=100, start_page_num=1)
+    #     save_to_data_folder(coursera_data, "coursera_dataset.csv")
         
-    except Exception as e:
-        print(f"Error fetching Coursera: {e}")
+    # except Exception as e:
+    #     print(f"Error fetching Coursera: {e}")
 
     print("\n[2/5] Fetching FutureSkill Data...")
     try:

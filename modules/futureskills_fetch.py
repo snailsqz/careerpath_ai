@@ -28,7 +28,7 @@ def fetch_futureskill(limit_pages=5):
     page = 1
     limit_per_req = 10
     
-    print(f"🚀 Starting fetch FutureSkill (Impersonating Chrome)...")
+    print(f"Starting fetch FutureSkill (Impersonating Chrome)...")
     
     while page <= limit_pages:
         params = {
@@ -56,7 +56,7 @@ def fetch_futureskill(limit_pages=5):
                 items = data.get('data', {}).get('items', {}).get('courses', [])
                 
                 if not items:
-                    print("✅ No more data.")
+                    print("No more data.")
                     break
                 
                 for item in items:
@@ -73,7 +73,7 @@ def fetch_futureskill(limit_pages=5):
                     
                     # Duration เป็นวินาที หาร 60
                     duration_sec = item.get('duration', 0)
-                    duration_str = f"{duration_sec // 60} mins"
+                    duration_str = format_duration(duration_sec)
 
                     course_id = item.get('id')
                     url = f"https://futureskill.co/course/detail/{course_id}"
@@ -106,6 +106,19 @@ def fetch_futureskill(limit_pages=5):
             break
 
     return all_courses
+
+def format_duration(milliseconds):
+    if not milliseconds: return "Self-paced"
+    
+    seconds = milliseconds // 1000 
+    
+    hours = seconds // 3600
+    mins = (seconds % 3600) // 60
+    
+    if hours > 0:
+        return f"{hours}h {mins}m"
+    else:
+        return f"{mins}m"
 
 def save_to_csv(courses, filename="futureskill_dataset.csv"):
     if not courses:

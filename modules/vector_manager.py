@@ -6,8 +6,7 @@ import os
 import hashlib
 import shutil
 
-# ใช้ Model เดิม
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 def generate_hash(text):
     """สร้างรหัส MD5 จากข้อความ เพื่อใช้ตรวจสอบว่าเนื้อหาเปลี่ยนหรือไม่"""
@@ -43,16 +42,16 @@ def load_all_data_sources(paths):
     all_items = []
     
     # 1. Coursera
-    if os.path.exists(paths['coursera']):
-        try:
-            df = pd.read_csv(paths['coursera'])
-            df['image_url'] = df['image_url'].fillna('') 
-            all_items.extend(df.to_dict('records'))
-            print(f"Loaded {len(df)} items from Coursera")
-        except Exception as e:
-            print(f"Error loading Coursera: {e}")
+    # if os.path.exists(paths['coursera']):
+    #     try:
+    #         df = pd.read_csv(paths['coursera'])
+    #         df['image_url'] = df['image_url'].fillna('') 
+    #         all_items.extend(df.to_dict('records'))
+    #         print(f"Loaded {len(df)} items from Coursera")
+    #     except Exception as e:
+    #         print(f"Error loading Coursera: {e}")
 
-    # 2. FutureSkill
+    #2. FutureSkill
     if os.path.exists(paths['futureskill']):
         try:
             df = pd.read_csv(paths['futureskill'])
@@ -73,14 +72,14 @@ def load_all_data_sources(paths):
             print(f"Error loading DataCamp: {e}")
 
     # 4. Internal Data
-    if os.path.exists(paths['internal']):
-        try:
-            df = pd.read_csv(paths['internal'])
-            df['image_url'] = df['image_url'].fillna('')
-            all_items.extend(df.to_dict('records'))
-            print(f"Loaded {len(df)} internal items")
-        except Exception as e:
-            print(f"Error loading Internal: {e}")
+    # if os.path.exists(paths['internal']):
+    #     try:
+    #         df = pd.read_csv(paths['internal'])
+    #         df['image_url'] = df['image_url'].fillna('')
+    #         all_items.extend(df.to_dict('records'))
+    #         print(f"Loaded {len(df)} internal items")
+    #     except Exception as e:
+    #         print(f"Error loading Internal: {e}")
             
     return all_items
 
@@ -118,6 +117,9 @@ def update_database_incremental():
 
     for item in incoming_data:
         doc_id = str(item.get('id', 'unknown'))
+        
+        if doc_id in ids_seen_in_source:
+            continue
         ids_seen_in_source.add(doc_id)
         
 
