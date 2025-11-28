@@ -58,13 +58,13 @@ class SkillEngine:
             You are an expert Career Advisor AI.
             
             User Message: "{user_message}"
-            
             Task:
-            1. STRICTLY Detect the language of the user's message (TH or EN).
-            2. Extract Current & Target roles.
-            3. Analyze the technical skill gap.
-            4. Create a "Strategic Action Roadmap".
-            5. Identify TOP 5 CRITICAL missing skills.
+            1. STRICTLY Detect the language (TH/EN).
+            2. Detect if the user explicitly asks for "FREE" courses (e.g. "free", "no cost", "ฟรี", "ไม่เสียตัง").
+            3. Extract Current & Target roles.
+            4. Analyze skill gap.
+            5. Create Roadmap.
+            6. Identify TOP 5 CRITICAL missing skills.
             
             ### LANGUAGE ENFORCEMENT RULES ###
             - If user writes in English -> Output ENGLISH.
@@ -98,6 +98,7 @@ class SkillEngine:
             Return ONLY a JSON object:
             {{
                 "detected_language": "TH" or "EN",
+                "preference_free": true or false,
                 "current_role": "...",
                 "target_role": "...",
                 "summary": "...",
@@ -120,6 +121,8 @@ class SkillEngine:
     def analyze_and_recommend(self, user_message):
         analysis_result = self._extract_and_analyze(user_message)
         user_lang = analysis_result.get("detected_language", "TH").upper()
+        
+        prefer_free = analysis_result.get("preference_free", False)
         
         missing_skills_data = analysis_result.get("missing_skills", [])[:5]
         recommendations = []
@@ -156,6 +159,7 @@ class SkillEngine:
                 
                 final_results = [(doc, score) for doc, score in unique_results.values()]
 
+                free_courses = []
                 thai_courses = []
                 other_courses = []
                 
@@ -163,7 +167,7 @@ class SkillEngine:
                     
                     print(f"   --> Found: [{score:.4f}] {doc.metadata.get('title')}")
 
-                    if score > 15.0: # ปรับเลขนี้ตามหน้างานจริง
+                    if score > 20.0: 
                         continue
                     
                     raw_duration = str(doc.metadata.get("duration", ""))
@@ -176,6 +180,7 @@ class SkillEngine:
                         "title": doc.metadata.get("title"),
                         "url": doc.metadata.get("url"),
                         "level": doc.metadata.get("level"),
+                        "price": doc.metadata.get("price", "Unknown"),
                         "category": doc.metadata.get("category", "General"),
                         "duration": display_duration,
                         "image_url": doc.metadata.get("image_url", ""),
@@ -185,27 +190,53 @@ class SkillEngine:
 
                     source = course_data["source"]
                     title = course_data["title"]
+                    price = str(course_data["price"]).lower()
                     
-                    if source in ['SkillLane', 'FutureSkill'] or self._is_thai_content(title):
+                    if source == 'Khan Academy' or 'free' in price:
+                        free_courses.append(course_data)
+                    # 2. เช็คของไทย
+                    elif source in ['SkillLane', 'FutureSkill'] or self._is_thai_content(title):
                         thai_courses.append(course_data)
+                    # 3. ที่เหลือ (Inter Paid)
                     else:
                         other_courses.append(course_data)
                 
                 final_selection = []
-                # เรียงจาก น้อยไปมาก (Distance น้อย = ดี)
+                
+                # เรียงคะแนนในแต่ละกลุ่ม
+                free_courses.sort(key=lambda x: x['score'])
                 thai_courses.sort(key=lambda x: x['score'])
                 other_courses.sort(key=lambda x: x['score'])
-
-                if user_lang == 'TH':
-                    final_selection.extend(thai_courses)
+                
+                if prefer_free:
+                    # ถ้าอยากได้ฟรี: ฟรี -> ไทย -> อังกฤษ
+                    final_selection.extend(free_courses)
+                    
+                    # ถ้าของฟรีไม่พอ ให้เติมด้วยภาษาตาม User
                     if len(final_selection) < 2:
                         needed = 2 - len(final_selection)
-                        final_selection.extend(other_courses[:needed])
+                        if user_lang == 'TH':
+                            final_selection.extend(thai_courses[:needed])
+                        else:
+                            final_selection.extend(other_courses[:needed])
+                            
                 else:
-                    final_selection.extend(other_courses)
-                    if len(final_selection) < 2:
-                        needed = 2 - len(final_selection)
-                        final_selection.extend(thai_courses[:needed])
+                    if user_lang == 'TH':
+                        final_selection.extend(thai_courses)
+                        if len(final_selection) < 2:
+                            needed = 2 - len(final_selection)
+                            # ลองเอา Inter มาเติมก่อน ถ้าไม่มีค่อยเอา Free
+                            inter_mix = other_courses + free_courses
+                            inter_mix.sort(key=lambda x: x['score'])
+                            final_selection.extend(inter_mix[:needed])
+                    else:
+                        final_selection.extend(other_courses)
+                        if len(final_selection) < 2:
+                            needed = 2 - len(final_selection)
+                            # ลองเอา Free มาเติม (เพราะภาษาอังกฤษเหมือนกัน)
+                            inter_mix = free_courses + thai_courses
+                            inter_mix.sort(key=lambda x: x['score'])
+                            final_selection.extend(inter_mix[:needed])
 
                 best_courses = final_selection[:2]
 

@@ -34,6 +34,7 @@ def get_project_paths():
         #"skilllane": os.path.join(project_root, 'data', 'skilllane_dataset.csv'),
         "futureskill": os.path.join(project_root, 'data', 'futureskill_dataset.csv'),
         "datacamp": os.path.join(project_root, 'data', 'datacamp_dataset.csv'),
+        "khan": os.path.join(project_root, 'data', 'khan_dataset.csv'),
         "db": os.path.join(project_root, 'vector_store')
     }
 
@@ -70,6 +71,15 @@ def load_all_data_sources(paths):
             print(f"Loaded {len(df)} items from DataCamp")
         except Exception as e:
             print(f"Error loading DataCamp: {e}")
+            
+    if os.path.exists(paths['khan']):
+        try:
+            df = pd.read_csv(paths['khan'])
+            df['image_url'] = df['image_url'].fillna('')
+            all_items.extend(df.to_dict('records'))
+            print(f"Loaded {len(df)} items from Khan Academy")
+        except Exception as e:
+            print(f"Error loading Khan Academy: {e}")
 
     # 4. Internal Data
     # if os.path.exists(paths['internal']):
