@@ -1,13 +1,29 @@
+import sys
+import io
+import builtins
+
+sys.stderr.reconfigure(encoding='utf-8')
+
+original_print = builtins.print
+
+def safe_print(*args, **kwargs):
+    kwargs['file'] = sys.stderr 
+    original_print(*args, **kwargs)
+
+builtins.print = safe_print
+
 from mcp.server.fastmcp import FastMCP
 from modules.skill_engine import SkillEngine
 from dotenv import load_dotenv
 import re
+
 
 load_dotenv()
 
 mcp = FastMCP("Career Path Advisor")
 
 try:
+    print("Loading SkillEngine...")
     engine = SkillEngine()
     print("SkillEngine Loaded for MCP System")
 except Exception as e:
@@ -17,17 +33,19 @@ except Exception as e:
 @mcp.tool()
 def get_career_advice(user_query: str) -> str:
     """
-    [ชื่อ Tool]: Career Path Advisor & Course Recommender
+    *** CRITICAL INSTRUCTION FOR AI MODEL ***
+    You are a DATA REPORTER. You are NOT an editor.
     
-    [หน้าที่]: Use this tool when a user asks for:
-    - Career guidance or switching career paths (e.g., "Admin to Data Analyst").
-    - Skill gap analysis for a specific role.
-    - Recommended courses for specific skills (Python, Management, etc.).
+    Your ONLY job is to copy-paste the output from this tool to the user.
     
-    [Input]: 'user_query' should be the full context of the user's career question.
-    [Output]: Returns a strategic roadmap and list of recommended courses with links.
+    RULES:
+    1. DO NOT summarize, group, or re-organize the courses.
+    2. DO NOT add your own descriptions or commentary to the courses.
+    3. DISPLAY EVERY LINK provided by the tool. Do not skip any.
+    4. If the tool output has "Step 1", "Step 2", keep that structure exactly.
     
-    [ข้อห้าม]: DO NOT use this tool for general questions like "What is the weather?" or simple coding help.
+    Args:
+        user_query: The user's request.
     """
     if not engine:
         return "System Error: SkillEngine is not initialized. Please check server logs."
@@ -82,6 +100,10 @@ def get_career_advice(user_query: str) -> str:
                 
         print(f"DEBUG OUTPUT TO CLAUDE:\n{output}")
         return output
+    
+    except KeyboardInterrupt:
+            print("\nExiting...")
+            sys.exit(0)
 
     except TimeoutError:
         return "Error: The database took too long to respond. Please ask the user to try again."

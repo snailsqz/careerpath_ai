@@ -67,16 +67,30 @@ class SkillEngine:
             5. Identify TOP 5 CRITICAL missing skills.
             
             ### LANGUAGE ENFORCEMENT RULES ###
-            - If the user writes in English, ALL output text MUST be in ENGLISH.
-            - If the user writes in Thai, ALL output text MUST be in THAI.
+            - If user writes in English -> Output ENGLISH.
+            - If user writes in Thai -> Output THAI.
             
-            ### SEARCH TERM RULES ###
-            - 'search_term_en': Must be specific and focused. Use ENGLISH only.
-            - 'search_term_th': If user speaks Thai, translate skill to Thai.
-            - BAD: "Node.js Python Java"
-            - GOOD: "Node.js Backend Development"
-            - RULE: If there are multiple choices, PICK THE SINGLE MOST SUITABLE ONE.
+            ### SEARCH TERM RULES (CRITICAL) ###
+            1. 'search_term_en': 
+               - Use standard English technical terms.
+               - Example: "Motion Graphics", "Data Analysis".
             
+            2. 'search_term_th': 
+               - **DO NOT use formal Thai translations** if they are weird (e.g. avoid "กราฟิกเคลื่อนไหว").
+               - **USE Common Industry Terms** or Transliteration (ทับศัพท์).
+               - **Allow Mixed Thai-English** (Thai people often use English tech terms).
+               
+               ✅ GOOD Examples:
+               - "Motion Graphic พื้นฐาน" (Mixed)
+               - "โมชั่นกราฟิก" (Transliteration)
+               - "เรียน Python" (Common)
+               - "Digital Marketing" (English term is common in Thai)
+               
+               ❌ BAD Examples:
+               - "กราฟิกเคลื่อนไหว" (Too formal)
+               - "การเขียนโปรแกรมภาษาไพทอน" (Too long/formal)
+               - "วิทยาศาสตร์ข้อมูล" (Better use "Data Science")
+
             ### OUTPUT FORMAT RULES ###
             - 'summary': Write a motivating roadmap.
             - 'missing_skills': Extract exactly 5 skills.
@@ -122,11 +136,11 @@ class SkillEngine:
                 try:
                     # ใช้ similarity_search_with_score (คืนค่า Distance: ยิ่งน้อยยิ่งดี)
                     if term_en:
-                        res_en = self.db.similarity_search_with_score(term_en, k=5)
+                        res_en = self.db.similarity_search_with_score(term_en, k=25)
                         results.extend(res_en)
                     
                     if term_th and term_th != term_en:
-                        res_th = self.db.similarity_search_with_score(term_th, k=5)
+                        res_th = self.db.similarity_search_with_score(term_th, k=25)
                         results.extend(res_th)
                         
                 except Exception as e:
@@ -146,10 +160,6 @@ class SkillEngine:
                 other_courses = []
                 
                 for doc, score in final_results:
-                    # Threshold Distance: ยิ่งน้อยยิ่งดี
-                    # สำหรับ Multilingual Model ค่า L2 Distance อาจจะกว้าง (10-20) หรือแคบ (0-1)
-                    # ลองเริ่มที่ 15.0 (ถ้า L2) หรือ 1.0 (ถ้า Cosine)
-                    # แนะนำให้รันดูค่าจริงก่อน
                     
                     print(f"   --> Found: [{score:.4f}] {doc.metadata.get('title')}")
 

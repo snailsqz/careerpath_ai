@@ -42,14 +42,14 @@ def load_all_data_sources(paths):
     all_items = []
     
     # 1. Coursera
-    # if os.path.exists(paths['coursera']):
-    #     try:
-    #         df = pd.read_csv(paths['coursera'])
-    #         df['image_url'] = df['image_url'].fillna('') 
-    #         all_items.extend(df.to_dict('records'))
-    #         print(f"Loaded {len(df)} items from Coursera")
-    #     except Exception as e:
-    #         print(f"Error loading Coursera: {e}")
+    if os.path.exists(paths['coursera']):
+        try:
+            df = pd.read_csv(paths['coursera'])
+            df['image_url'] = df['image_url'].fillna('') 
+            all_items.extend(df.to_dict('records'))
+            print(f"Loaded {len(df)} items from Coursera")
+        except Exception as e:
+            print(f"Error loading Coursera: {e}")
 
     #2. FutureSkill
     if os.path.exists(paths['futureskill']):

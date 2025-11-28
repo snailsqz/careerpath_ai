@@ -2,6 +2,8 @@ import requests
 import pandas as pd
 import time
 import random
+from langdetect import detect, LangDetectException
+import os
 
 def fetch_courses(limit_per_page=100, max_pages=5, start_page_num=1):
     base_url = "https://api.coursera.org/api/courses.v1"
@@ -51,6 +53,21 @@ def fetch_courses(limit_per_page=100, max_pages=5, start_page_num=1):
                     languages = item.get("primaryLanguages", [])
                     if 'en' not in languages:
                         continue
+                    
+                    title = item.get("name", "")
+                    description = item.get("description", "")
+                    text_to_check = f"{title} {description}"[:500] 
+                    
+                    try:
+                        detected_lang = detect(text_to_check)
+                        
+                        # Allow only English (en) and Thai (th)
+                        # This removes French, Spanish, etc. even if metadata says 'en'
+                        if detected_lang not in ['en', 'th']:
+                            continue
+                            
+                    except LangDetectException:
+                        pass
 
                     domains = item.get("domainTypes", [])
                     if domains:
@@ -101,18 +118,30 @@ def fetch_courses(limit_per_page=100, max_pages=5, start_page_num=1):
 
 def save_to_csv(courses, filename="coursera_dataset.csv"):
     if not courses:
-        print("No data to save.")
+        print("⚠️ No data to save.")
         return
 
-    df = pd.DataFrame(courses)
-    df = df.dropna(subset=['description']) 
+    current_file_path = os.path.abspath(__file__)
     
-    if 'category' in df.columns:
-        df['category'] = df['category'].str.replace('-', ' ').str.title()
+    modules_dir = os.path.dirname(current_file_path)
+    
+    project_root = os.path.dirname(modules_dir)
+    
+    data_dir = os.path.join(project_root, 'data')
+    
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+        print(f"Created folder: {data_dir}")
 
-    df.to_csv(filename, index=False, encoding='utf-8-sig')
-    print(f"Saved {len(df)} courses to {filename}")
+    # 5. รวมร่าง Path กับชื่อไฟล์
+    full_path = os.path.join(data_dir, filename)
+    
+    # 6. บันทึกไฟล์
+    df = pd.DataFrame(courses)
+    df.to_csv(full_path, index=False, encoding='utf-8-sig')
+    
+    print(f"Saved {len(df)} courses to: {full_path}")
 
 if __name__ == "__main__":
-    courses = fetch_courses(max_pages=10)
+    courses = fetch_courses(max_pages=40)
     save_to_csv(courses)

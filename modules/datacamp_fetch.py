@@ -6,6 +6,7 @@ import time
 import random
 import hashlib
 import urllib.parse
+import os
 
 def clean_text_from_dict(data):
     """Extract text from dictionary like {'en-US': '...'}"""
@@ -90,17 +91,14 @@ def fetch_datacamp_courses(max_pages=20):
                     c_id = hashlib.md5(title.encode()).hexdigest()[:10]
 
                 # 3. Fix URL (Fallback to search if no slug)
-                slug = item.get('slug') or item.get('relative_url') or item.get('url')
-                if slug:
-                    slug_str = str(slug)
-                    if slug_str.startswith('http'):
-                        course_url = slug_str
-                    elif slug_str.startswith('/'):
-                        course_url = f"https://www.datacamp.com{slug_str}"
-                    else:
-                        course_url = f"https://www.datacamp.com/{slug_str}"
+                raw_slug = item.get('slug') or item.get('url') or item.get('relative_url')
+                
+                if raw_slug:            
+                    slug_str = str(raw_slug).strip().rstrip('/')
+                    clean_slug = slug_str.split('/')[-1] # ตัดเอาแค่ตัวหลังสุด
+                    course_url = f"https://www.datacamp.com/courses/{clean_slug}"
                 else:
-                    # Fallback: Create Search Link
+                    # Fallback ถ้าไม่มีข้อมูลจริงๆ
                     encoded_title = urllib.parse.quote(title)
                     course_url = f"https://www.datacamp.com/search?q={encoded_title}"
 
@@ -143,10 +141,36 @@ def fetch_datacamp_courses(max_pages=20):
 
     return all_courses
 
+def save_to_csv(courses, filename="datacamp_dataset.csv"):
+    if not courses:
+        print("⚠️ No data to save.")
+        return
+
+    current_file_path = os.path.abspath(__file__)
+    
+    modules_dir = os.path.dirname(current_file_path)
+    
+    project_root = os.path.dirname(modules_dir)
+    
+    data_dir = os.path.join(project_root, 'data')
+    
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+        print(f"Created folder: {data_dir}")
+
+    # 5. รวมร่าง Path กับชื่อไฟล์
+    full_path = os.path.join(data_dir, filename)
+    
+    # 6. บันทึกไฟล์
+    df = pd.DataFrame(courses)
+    df.to_csv(full_path, index=False, encoding='utf-8-sig')
+    
+    print(f"Saved {len(df)} courses to: {full_path}")
+
 if __name__ == "__main__":
     # Fetch 10 pages
     courses = fetch_datacamp_courses(max_pages=25)
     if courses:
         df = pd.DataFrame(courses)
-        df.to_csv("datacamp_dataset.csv", index=False, encoding='utf-8-sig')
+        save_to_csv(courses, filename="datacamp_dataset.csv")
         print(f"\nCompleted! Saved {len(df)} courses.")
