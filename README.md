@@ -39,3 +39,10 @@ Try asking the AI these questions to see how it analyzes skill gaps and recommen
 - **ข้ามสาย:** "ไม่ได้จบสายคอมมา แต่อยากทำงานเป็น Software Engineer เริ่มจากศูนย์ได้ไหม"
 - **เป้าหมายกว้างๆ:** "อยากได้งานสาย Tech ที่เงินเดือนสูงๆ แนะนำหน่อย"
 - **เจาะจงสกิล:** "แนะนำคอร์สเรียน Python และ Machine Learning สำหรับมือใหม่หน่อย"
+
+## Disclaimer
+
+This project is for **educational and research purposes only**.
+The scraping scripts provided are intended to demonstrate technical capabilities in data pipeline development.
+Please respect the Terms of Service of the respective platforms.
+Do not use this tool for commercial purposes or large-scale data extraction.

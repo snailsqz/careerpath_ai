@@ -4,9 +4,12 @@ import time
 import random
 from langdetect import detect, LangDetectException
 import os
+from dotenv import load_dotenv 
+
+load_dotenv()
 
 def fetch_courses(limit_per_page=100, max_pages=5, start_page_num=1):
-    base_url = "https://api.coursera.org/api/courses.v1"
+    base_url = os.getenv("URL_COURSERA_API")
     
     fields = "name,description,slug,level,primaryLanguages,workload,domainTypes,certificates,photoUrl"
     

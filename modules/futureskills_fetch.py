@@ -6,6 +6,10 @@ import random
 import re
 import json
 import os
+from dotenv import load_dotenv 
+
+load_dotenv()
+
 
 def remove_html_tags(text):
     if not text: return ""
@@ -13,7 +17,7 @@ def remove_html_tags(text):
     return re.sub(clean, ' ', str(text)).strip()
 
 def fetch_futureskill(limit_pages=5):
-    base_url = "https://futureskill.co/fs-content-api/courses/all-course-and-learning-path"
+    base_url = os.getenv("URL_FUTURESKILL_API")
     
     # Headers ให้ใส่เหมือน Browser จริง
     headers = {

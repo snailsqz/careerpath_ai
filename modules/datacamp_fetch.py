@@ -7,6 +7,9 @@ import random
 import hashlib
 import urllib.parse
 import os
+from dotenv import load_dotenv 
+
+load_dotenv()
 
 def clean_text_from_dict(data):
     """Extract text from dictionary like {'en-US': '...'}"""
@@ -15,7 +18,7 @@ def clean_text_from_dict(data):
     return str(data) if data else ""
 
 def fetch_datacamp_courses(max_pages=20):
-    base_url = "https://www.datacamp.com/courses-all"
+    base_url = os.getenv("URL_DATACAMP_API")
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
