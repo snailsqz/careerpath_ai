@@ -1,0 +1,29 @@
+[project]
+name = "careerpath-ai"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "snailsqz",email = "snailsqz@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain-chroma>=1.0.0",
+    "langchain-core>=1.1.0",
+    "langchain-google-genai>=3.1.0",
+    "langchain-huggingface>=1.0.1",
+    "pandas>=2.3.3",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+    "sentence-transformers>=5.1.2",
+    "gradio>=6.0.0",
+    "langdetect",
+    "curl-cffi",
+    "beautifulsoup4",
+    "fastmcp>=2.13.1"
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

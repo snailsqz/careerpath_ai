@@ -1,45 +1,44 @@
+import json
+import re
+import os
+from typing import Dict, List, Any, Optional, Tuple
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-import os
-from dotenv import load_dotenv
-import json
-import re
+from langchain_core.documents import Document
 
-load_dotenv()
+from src.careerpath_ai.config import (
+    GOOGLE_API_KEY, VECTOR_STORE_DIR, EMBEDDING_MODEL_NAME, MODEL_NAME
+)
+from src.careerpath_ai.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class SkillEngine:
-    def __init__(self, google_api_key=None, db_path="./vector_store", model_name="gemini-2.5-flash"):
-        # ใช้ Model ตัวใหม่ (Multilingual)
-        self.embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+    def __init__(self, google_api_key: Optional[str] = None, 
+                 db_path: Optional[str] = None, 
+                 model_name: str = MODEL_NAME):
         
-        try:
-            current_path = os.path.dirname(os.path.abspath(__file__))
-        except NameError:
-            current_path = os.getcwd()
-            
-        project_root = current_path
-        while True:
-            possible_path = os.path.join(project_root, 'vector_store')
-            if os.path.exists(possible_path):
-                real_db_path = possible_path
-                break
-            parent = os.path.dirname(project_root)
-            if parent == project_root:
-                real_db_path = os.path.join(os.getcwd(), 'vector_store')
-                break
-            project_root = parent
-
+        # Initialize Embeddings
+        self.embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+        
+        # Path Handling
+        real_db_path = str(db_path) if db_path else str(VECTOR_STORE_DIR)
+        
         if os.path.exists(real_db_path):
             self.db = Chroma(persist_directory=real_db_path, embedding_function=self.embedding_model)
+            logger.info(f"Vector Database loaded from {real_db_path}")
         else:
             self.db = None
+            logger.warning(f"Vector Database not found at {real_db_path}. Search functionality will be limited.")
 
-        api_key = google_api_key or os.getenv("GOOGLE_API_KEY")
+        # API Key Handling
+        api_key = google_api_key or GOOGLE_API_KEY
         if not api_key:
-            raise ValueError("API Key not found.")
+            raise ValueError("Google API Key not found. Please check your .env file.")
 
         self.llm = ChatGoogleGenerativeAI(
             model=model_name,
@@ -47,10 +46,12 @@ class SkillEngine:
             temperature=0
         )
 
-    def _is_thai_content(self, text):
+    def _is_thai_content(self, text: str) -> bool:
+        """Check if text contains Thai characters."""
         return bool(re.search(r'[\u0E00-\u0E7F]', str(text)))
 
-    def _extract_and_analyze(self, user_message):
+    def _extract_and_analyze(self, user_message: str) -> Dict[str, Any]:
+        """Extract intent and analyze skill gaps using LLM."""
         parser = JsonOutputParser()
         
         prompt = PromptTemplate(
@@ -114,11 +115,14 @@ class SkillEngine:
             """,
             input_variables=["user_message"]
         )
+        # Prevent JSON injection issues by simple bracket replacement if needed, 
+        # though langchain handles most sanitization.
         safe_message = user_message.replace("{", "(").replace("}", ")")
         chain = prompt | self.llm | parser
         return chain.invoke({"user_message": safe_message})
 
-    def analyze_and_recommend(self, user_message):
+    def analyze_and_recommend(self, user_message: str) -> Dict[str, Any]:
+        """Main entry point for analysis and course recommendation."""
         analysis_result = self._extract_and_analyze(user_message)
         user_lang = analysis_result.get("detected_language", "TH").upper()
         
@@ -133,11 +137,11 @@ class SkillEngine:
                 term_th = item.get('search_term_th', '')
                 display_name = item.get('display_name', term_en)
                 
-                print(f"[DEBUG] Searching: EN='{term_en}' | TH='{term_th}'")
+                logger.debug(f"Searching: EN='{term_en}' | TH='{term_th}'")
                 
-                results = []
+                results: List[Tuple[Document, float]] = []
                 try:
-                    # ใช้ similarity_search_with_score (คืนค่า Distance: ยิ่งน้อยยิ่งดี)
+                    # similarity_search_with_score returns (Document, score) where score is distance (lower is better)
                     if term_en:
                         res_en = self.db.similarity_search_with_score(term_en, k=25)
                         results.extend(res_en)
@@ -147,28 +151,29 @@ class SkillEngine:
                         results.extend(res_th)
                         
                 except Exception as e:
-                    print(f"Search Error: {e}")
+                    logger.error(f"Search Error for term '{display_name}': {e}")
                     results = []
 
-                unique_results = {}
+                # Deduplicate results by URL, keeping the lowest score (best match)
+                unique_results: Dict[str, Tuple[Document, float]] = {}
                 for doc, score in results:
                     url = doc.metadata.get("url")
-                    # Logic: ถ้าเจอซ้ำ ให้เอาตัวที่ Score ต่ำกว่า (Distance น้อยกว่า = เหมือนกว่า)
                     if url not in unique_results or score < unique_results[url][1]:
                         unique_results[url] = (doc, score)
                 
-                final_results = [(doc, score) for doc, score in unique_results.values()]
+                final_results = list(unique_results.values())
 
                 free_courses = []
                 thai_courses = []
                 other_courses = []
                 
                 for doc, score in final_results:
-                    
-                    print(f"   --> Found: [{score:.4f}] {doc.metadata.get('title')}")
-
+                    # Filter out poor matches (arbitrary threshold, kept from original code)
                     if score > 20.0: 
                         continue
+                    
+                    # Log successful finds at debug level
+                    # logger.debug(f"Found: [{score:.4f}] {doc.metadata.get('title')}")
                     
                     raw_duration = str(doc.metadata.get("duration", ""))
                     if raw_duration.lower() == 'nan' or not raw_duration:
@@ -194,25 +199,20 @@ class SkillEngine:
                     
                     if source == 'Khan Academy' or 'free' in price:
                         free_courses.append(course_data)
-                    # 2. เช็คของไทย
                     elif source in ['SkillLane', 'FutureSkill'] or self._is_thai_content(title):
                         thai_courses.append(course_data)
-                    # 3. ที่เหลือ (Inter Paid)
                     else:
                         other_courses.append(course_data)
                 
+                # Selection Logic
                 final_selection = []
                 
-                # เรียงคะแนนในแต่ละกลุ่ม
                 free_courses.sort(key=lambda x: x['score'])
                 thai_courses.sort(key=lambda x: x['score'])
                 other_courses.sort(key=lambda x: x['score'])
                 
                 if prefer_free:
-                    # ถ้าอยากได้ฟรี: ฟรี -> ไทย -> อังกฤษ
                     final_selection.extend(free_courses)
-                    
-                    # ถ้าของฟรีไม่พอ ให้เติมด้วยภาษาตาม User
                     if len(final_selection) < 2:
                         needed = 2 - len(final_selection)
                         if user_lang == 'TH':
@@ -225,7 +225,6 @@ class SkillEngine:
                         final_selection.extend(thai_courses)
                         if len(final_selection) < 2:
                             needed = 2 - len(final_selection)
-                            # ลองเอา Inter มาเติมก่อน ถ้าไม่มีค่อยเอา Free
                             inter_mix = other_courses + free_courses
                             inter_mix.sort(key=lambda x: x['score'])
                             final_selection.extend(inter_mix[:needed])
@@ -233,13 +232,13 @@ class SkillEngine:
                         final_selection.extend(other_courses)
                         if len(final_selection) < 2:
                             needed = 2 - len(final_selection)
-                            # ลองเอา Free มาเติม (เพราะภาษาอังกฤษเหมือนกัน)
                             inter_mix = free_courses + thai_courses
                             inter_mix.sort(key=lambda x: x['score'])
                             final_selection.extend(inter_mix[:needed])
 
                 best_courses = final_selection[:2]
 
+                # Fallback if no courses found
                 if not best_courses:
                     encoded_query = term_en.replace(" ", "%20")
                     best_courses = [{
@@ -268,8 +267,8 @@ class SkillEngine:
 if __name__ == "__main__":
     try:
         engine = SkillEngine()
-        user_input = "อยากเรียนการตลาด"
-        result = engine.analyze_and_recommend(user_input)
+        user_input_test = "อยากเรียนการตลาด"
+        result = engine.analyze_and_recommend(user_input_test)
         print(json.dumps(result, indent=2, ensure_ascii=False))
-    except ValueError as e:
-        print(f"Error: {e}")
+    except Exception as e:
+        logger.exception("An error occurred during execution.")

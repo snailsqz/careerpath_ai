@@ -1,14 +1,26 @@
 import gradio as gr
-from modules.skill_engine import SkillEngine
-from dotenv import load_dotenv
 import time
 import re
+from src.careerpath_ai.engine.skill_engine import SkillEngine
+from src.careerpath_ai.config import GOOGLE_API_KEY
 
-load_dotenv()
-engine = SkillEngine()
+# Initialize engine only if API key is present
+if GOOGLE_API_KEY:
+    try:
+        engine = SkillEngine()
+    except Exception as e:
+        print(f"Engine initialization failed: {e}")
+        engine = None
+else:
+    print("Warning: Google API Key not found.")
+    engine = None
 
 def career_advisor(user_message):
-    yield "*AI กำลังวิเคราะห์สกิลและค้นหาคอร์สเรียน... (อาจใช้เวลา 5-10 วินาที)*"
+    if not engine:
+        yield "Error: System not initialized. Please check API Key configuration."
+        return
+
+    yield "*AI is analyzing skills and searching for courses... (this may take 5-10 seconds)*"
     try:
         result = engine.analyze_and_recommend(user_message)
         
@@ -16,17 +28,16 @@ def career_advisor(user_message):
         c_role = intent.get('detected_current_role', 'Unknown')
         t_role = intent.get('detected_target_role', 'Unknown')
         
-        output_text = f"CAREER GOAL: {c_role} ➔ {t_role}\n"
+        output_text = f"**CAREER GOAL:** {c_role} ➔ {t_role}\n"
         output_text += "---\n\n"
         
         output_text += "### STRATEGIC ROADMAP\n"
         summary = result.get('analysis_summary', '')
 
         clean_summary = summary.replace("**", "").replace("```", "")
-
         clean_summary = re.sub(r"^\s+", "", clean_summary, flags=re.MULTILINE)
 
-        # 3. ใช้ Regex จัดการหัวข้อ Phase/ระยะ เหมือนเดิม
+        # Use Regex to format headers like "Phase"
         formatted_summary = re.sub(
             r"(?:^|\n)\s*[\*\-•◦]?\s*(Phase|ระยะ)",
             r"\n\n### \1",
@@ -58,9 +69,7 @@ def career_advisor(user_message):
 
         chunk_size = 50 
         for i in range(0, len(output_text), chunk_size):
-            # ส่งข้อความทีละท่อนใหญ่ๆ
             yield output_text[:i+chunk_size]
-            # ไม่ต้อง sleep หรือ sleep น้อยมากๆ
             time.sleep(0.01) 
             
         yield output_text
@@ -70,11 +79,11 @@ def career_advisor(user_message):
 
 iface = gr.Interface(
     fn=career_advisor,
-    inputs=gr.Textbox(lines=2, placeholder="เช่น: ผมเป็น Accountant อยากเป็น Data Analyst"),
+    inputs=gr.Textbox(lines=2, placeholder="e.g.: I am an Accountant wanting to become a Data Analyst"),
     outputs=gr.Markdown(),
     title="AI Career Path Advisor",
-    description="ระบบแนะนำคอร์สเรียนเพื่อปิด Skill Gap",
-    flagging_options=["คำตอบมั่ว", "คำตอบดีมาก"],
+    description="Course Recommendation System for Closing Skill Gaps",
+    flagging_options=["Inaccurate", "Excellent"],
     flagging_dir="user_feedback_logs"
 )
 

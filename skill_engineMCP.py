@@ -1,9 +1,12 @@
 import sys
 import io
 import builtins
+import re
 
+# Redirect stderr for UTF-8 (Windows fix)
 sys.stderr.reconfigure(encoding='utf-8')
 
+# Monkey patch print to stderr to avoid breaking MCP JSON protocol on stdout
 original_print = builtins.print
 
 def safe_print(*args, **kwargs):
@@ -13,19 +16,19 @@ def safe_print(*args, **kwargs):
 builtins.print = safe_print
 
 from mcp.server.fastmcp import FastMCP
-from modules.skill_engine import SkillEngine
-from dotenv import load_dotenv
-import re
-
-
-load_dotenv()
+from src.careerpath_ai.engine.skill_engine import SkillEngine
+from src.careerpath_ai.config import GOOGLE_API_KEY
 
 mcp = FastMCP("Career Path Advisor")
 
 try:
     print("Loading SkillEngine...")
-    engine = SkillEngine()
-    print("SkillEngine Loaded for MCP System")
+    if GOOGLE_API_KEY:
+        engine = SkillEngine()
+        print("SkillEngine Loaded for MCP System")
+    else:
+        print("Error: Google API Key missing.")
+        engine = None
 except Exception as e:
     print(f"Error loading SkillEngine: {e}")
     engine = None
@@ -48,7 +51,7 @@ def get_career_advice(user_query: str) -> str:
         user_query: The user's request.
     """
     if not engine:
-        return "System Error: SkillEngine is not initialized. Please check server logs."
+        return "System Error: SkillEngine is not initialized. Please check server logs and API Key."
 
     try:   
         result = engine.analyze_and_recommend(user_query)
@@ -59,16 +62,15 @@ def get_career_advice(user_query: str) -> str:
         
         output = f"# CAREER GOAL: {c_role} -> {t_role}\n\n"
         
-        # 3. จัดการ Summary (ใช้ Regex ล้างขยะเหมือนใน Demo UI)
+        # Summary Formatting
         summary = result.get('analysis_summary', '')
         
-        # ล้างตัวหนาและ Code Block
+        # Clean formatting
         clean_summary = summary.replace("**", "").replace("```", "")
-        # ลบย่อหน้าเกิน
         clean_summary = re.sub(r"^\s+", "", clean_summary, flags=re.MULTILINE)
-        # จัดหัวข้อ Phase สวยๆ
+        
         formatted_summary = re.sub(
-            r"(?:^|\n)\s*[\*\-•◦]?\s*(Phase|ระยะ)",
+            r"(?:^|\n)\s*[\*\-\•◦]?\s*(Phase|ระยะ)",
             r"\n\n### \1",
             clean_summary
         )
@@ -77,7 +79,7 @@ def get_career_advice(user_query: str) -> str:
         output += "---\n\n"
         output += "### RECOMMENDED LEARNING PATH\n"
         
-        # 4. จัดการ Course List
+        # Recommendations
         recommendations = result.get('recommendations', [])
         
         if not recommendations:
@@ -90,7 +92,7 @@ def get_career_advice(user_query: str) -> str:
                 courses = item.get('suggested_courses', [])
                 if courses:
                     course = courses[0]
-                    # ส่งกลับเป็น Markdown Link เพื่อให้ Claude แสดงผลสวยๆ
+                    # Markdown Link
                     output += f"- **Course:** [{course['title']}]({course['url']})\n"
                     output += f"- **Duration:** {course['duration']}\n"
                 else:
