@@ -7,10 +7,10 @@ import hashlib
 import shutil
 from typing import List, Dict, Any
 
-from src.careerpath_ai.config import (
+from src.config import (
     DATA_DIR, VECTOR_STORE_DIR, EMBEDDING_MODEL_NAME
 )
-from src.careerpath_ai.utils.logger import get_logger
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

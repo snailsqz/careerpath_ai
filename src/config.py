@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Base paths
-# src/careerpath_ai/config.py -> src/careerpath_ai -> src -> project_root
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+# src/config.py -> src -> project_root
+BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 VECTOR_STORE_DIR = BASE_DIR / "vector_store"
 
@@ -26,4 +26,4 @@ EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12
 if not GOOGLE_API_KEY:
     # We might not want to raise immediately on import in case we are just running utilities,
     # but for the main app it is critical.
-    pass 
+    pass

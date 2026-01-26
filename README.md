@@ -1,48 +1,89 @@
-# Career Path AI Recommender Module
+# CareerPath AI (CPAI)
 
-This module provides an AI-powered skill gap analysis and course recommendation engine (RAG).
-It integrates data from Coursera and SkillLane to suggest learning paths based on user career goals.
+CareerPath AI is an intelligent career advisory engine designed to analyze user career goals, identify skill gaps, and recommend personalized learning paths. By leveraging Large Language Models (LLMs) and Vector Search, the system provides context-aware guidance and curates relevant courses from major educational platforms.
 
-## Prerequisites
+## System Architecture & Technical Stack
 
-- Python 3.8+
-- Google Gemini API Key
+### 1. Data Ingestion (ETL Pipeline)
 
-## Installation
+The system employs a robust ETL (Extract, Transform, Load) pipeline to aggregate course data from multiple sources.
 
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
+- **Extraction**: Automated scrapers and API connectors collect metadata (titles, descriptions, syllabi) from platforms such as Coursera, Udemy, and localized providers.
+- **Transformation**: Data cleaning and normalization processes standardize course formats, filter low-quality entries, and detect language (TH/EN).
+- **Loading**: Processed data is embedded and stored in a vector database for efficient semantic retrieval.
+
+### 2. Core AI Engine (RAG - Retrieval Augmented Generation)
+
+The heart of the application is the `SkillEngine`, which utilizes a RAG architecture:
+
+- **Intent Analysis**: Google Gemini 2.5 Flash analyzes user input to extract current roles, target career paths, and specific constraints (e.g., preference for free courses).
+- **Semantic Search**: `sentence-transformers` generate high-dimensional embeddings for both user queries and course catalog data.
+- **Vector Retrieval**: ChromaDB performs similarity searches to find courses that mathematically match the identified skill gaps.
+- **Contextual Recommendation**: The LLM synthesizes the retrieved course data with the user's career context to generate a coherent, step-by-step learning roadmap.
+
+### 3. Memory & Context Management
+
+- **Short-term Memory**: Implements LangChain's `RunnableWithMessageHistory` to maintain conversational context within a session. This allows the system to handle follow-up questions and refine recommendations based on previous interactions.
+
+## Installation & Setup
+
+### Prerequisites
+
+- Python 3.12+
+- UV Package Manager (recommended) or Pip
+
+### Configuration
+
+1. Clone the repository.
+2. Create a `.env` file in the root directory.
+3. Add your Google API Key:
+   ```env
+   GOOGLE_API_KEY=your_api_key_here
    ```
-2. Create .env with GOOGLE_API_KEY inside it
-3. Run it
-   ```bash
-   python -u demo_ui.py
-   ```
 
-## Example Questions
+### Dependency Installation
 
-Try asking the AI these questions to see how it analyzes skill gaps and recommends courses:
+```bash
+uv sync
+```
 
-### English Prompts
+## Usage
 
-- **Career Switch:** "I am a Frontend Developer, but I want to switch to Backend Development. What should I learn?"
-- **Upskilling:** "I am a Junior Data Scientist. How can I become a Senior Data Scientist?"
-- **Cross-Domain:** "I am an Accountant, but I want to transition into an AI Engineer role."
-- **Leadership:** "I am a Senior Developer looking to become a CTO or Tech Lead. What skills am I missing?"
-- **Specific Tech:** "I want to master MLOps and CI/CD pipelines. Where should I start?"
+### 1. Data Pipeline Execution
 
-### Thai Prompts
+Before running the main application, ensure the vector database is populated:
 
-- **ย้ายสายงาน:** "ตอนนี้เป็น Admin แต่อยากย้ายสายไปทำ Data Analyst ต้องเริ่มยังไงครับ"
-- **เลื่อนตำแหน่ง:** "ผมเป็น AI Engineer อยากขยับไปเป็น Project Manager ต้องรู้อะไรเพิ่มบ้าง"
-- **ข้ามสาย:** "ไม่ได้จบสายคอมมา แต่อยากทำงานเป็น Software Engineer เริ่มจากศูนย์ได้ไหม"
-- **เป้าหมายกว้างๆ:** "อยากได้งานสาย Tech ที่เงินเดือนสูงๆ แนะนำหน่อย"
-- **เจาะจงสกิล:** "แนะนำคอร์สเรียน Python และ Machine Learning สำหรับมือใหม่หน่อย"
+```bash
+uv run src/engine/vector_manager.py
+```
 
-## Disclaimer
+This command triggers the incremental update process, processing CSV datasets and updating the ChromaDB vector store.
 
-This project is for **educational and research purposes only**.
-The scraping scripts provided are intended to demonstrate technical capabilities in data pipeline development.
-Please respect the Terms of Service of the respective platforms.
-Do not use this tool for commercial purposes or large-scale data extraction.
+### 2. Running the Advisor CLI
+
+Start the interactive command-line interface:
+
+```bash
+uv run main.py
+```
+
+## Project Structure
+
+```
+careerpath_ai/
+├── data/                   # Raw CSV datasets
+├── src/
+│   ├── engine/
+│   │   ├── skill_engine.py    # Core logic (LLM + RAG)
+│   │   └── vector_manager.py  # Vector DB management & ETL
+│   ├── model/              # Data models and schemas
+│   ├── utils/              # Helper functions (Logging, etc.)
+│   └── config.py           # Configuration management
+├── vector_store/           # Persisted ChromaDB data
+├── main.py                 # CLI Entry point
+└── pyproject.toml          # Dependency definitions
+```
+
+## License
+
+MIT License

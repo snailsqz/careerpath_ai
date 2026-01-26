@@ -16,8 +16,8 @@ def safe_print(*args, **kwargs):
 builtins.print = safe_print
 
 from mcp.server.fastmcp import FastMCP
-from src.careerpath_ai.engine.skill_engine import SkillEngine
-from src.careerpath_ai.config import GOOGLE_API_KEY
+from src.engine.skill_engine import SkillEngine
+from src.config import GOOGLE_API_KEY
 
 mcp = FastMCP("Career Path Advisor")
 

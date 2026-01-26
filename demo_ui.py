@@ -1,8 +1,8 @@
 import gradio as gr
 import time
 import re
-from src.careerpath_ai.engine.skill_engine import SkillEngine
-from src.careerpath_ai.config import GOOGLE_API_KEY
+from src.engine.skill_engine import SkillEngine
+from src.config import GOOGLE_API_KEY
 
 # Initialize engine only if API key is present
 if GOOGLE_API_KEY:

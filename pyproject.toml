@@ -21,7 +21,13 @@ dependencies = [
     "langdetect",
     "curl-cffi",
     "beautifulsoup4",
-    "fastmcp>=2.13.1"
+    "fastmcp>=2.13.1",
+    "langchain-community>=0.4.1",
+]
+
+[tool.poetry]
+packages = [
+    { include = "src" }
 ]
 
 [build-system]

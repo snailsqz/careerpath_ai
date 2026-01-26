@@ -1,11 +1,11 @@
 import sys
 import pandas as pd
-from src.careerpath_ai.config import DATA_DIR
-from src.careerpath_ai.ingestion.coursera_fetch import fetch_courses
-from src.careerpath_ai.ingestion.futureskills_fetch import fetch_futureskill
-from src.careerpath_ai.ingestion.datacamp_fetch import fetch_datacamp_courses
-from src.careerpath_ai.engine.vector_manager import build_database
-from src.careerpath_ai.utils.logger import get_logger
+from src.config import DATA_DIR
+from src.ingestion.coursera_fetch import fetch_courses
+from src.ingestion.futureskills_fetch import fetch_futureskill
+from src.ingestion.datacamp_fetch import fetch_datacamp_courses
+from src.engine.vector_manager import build_database
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

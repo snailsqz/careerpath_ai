@@ -4,36 +4,56 @@ import os
 from typing import Dict, List, Any, Optional, Tuple
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import (
+    PromptTemplate,
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+)
 from langchain_core.output_parsers import JsonOutputParser
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
-from src.careerpath_ai.config import (
-    GOOGLE_API_KEY, VECTOR_STORE_DIR, EMBEDDING_MODEL_NAME, MODEL_NAME
+from src.config import (
+    GOOGLE_API_KEY,
+    VECTOR_STORE_DIR,
+    EMBEDDING_MODEL_NAME,
+    MODEL_NAME,
 )
-from src.careerpath_ai.utils.logger import get_logger
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class SkillEngine:
-    def __init__(self, google_api_key: Optional[str] = None, 
-                 db_path: Optional[str] = None, 
-                 model_name: str = MODEL_NAME):
-        
+    def __init__(
+        self,
+        google_api_key: Optional[str] = None,
+        db_path: Optional[str] = None,
+        model_name: str = MODEL_NAME,
+    ):
+        # Initialize Memory Store
+        self.session_store = {}
+
         # Initialize Embeddings
         self.embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
-        
+
         # Path Handling
         real_db_path = str(db_path) if db_path else str(VECTOR_STORE_DIR)
-        
+
         if os.path.exists(real_db_path):
-            self.db = Chroma(persist_directory=real_db_path, embedding_function=self.embedding_model)
+            self.db = Chroma(
+                persist_directory=real_db_path, embedding_function=self.embedding_model
+            )
             logger.info(f"Vector Database loaded from {real_db_path}")
         else:
             self.db = None
-            logger.warning(f"Vector Database not found at {real_db_path}. Search functionality will be limited.")
+            logger.warning(
+                f"Vector Database not found at {real_db_path}. Search functionality will be limited."
+            )
 
         # API Key Handling
         api_key = google_api_key or GOOGLE_API_KEY
@@ -41,28 +61,35 @@ class SkillEngine:
             raise ValueError("Google API Key not found. Please check your .env file.")
 
         self.llm = ChatGoogleGenerativeAI(
-            model=model_name,
-            google_api_key=api_key,
-            temperature=0
+            model=model_name, google_api_key=api_key, temperature=0
         )
+
+    def get_session_history(self, session_id: str) -> BaseChatMessageHistory:
+        if session_id not in self.session_store:
+            self.session_store[session_id] = ChatMessageHistory()
+        return self.session_store[session_id]
 
     def _is_thai_content(self, text: str) -> bool:
         """Check if text contains Thai characters."""
-        return bool(re.search(r'[\u0E00-\u0E7F]', str(text)))
+        return bool(re.search(r"[\u0E00-\u0E7F]", str(text)))
 
-    def _extract_and_analyze(self, user_message: str) -> Dict[str, Any]:
+    def _extract_and_analyze(
+        self, user_message: str, session_id: str = "default_session"
+    ) -> Dict[str, Any]:
         """Extract intent and analyze skill gaps using LLM."""
         parser = JsonOutputParser()
-        
-        prompt = PromptTemplate(
-            template="""
-            You are an expert Career Advisor AI.
+
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    """
+            You are an expert Career Advisor AI with memory.
             
-            User Message: "{user_message}"
             Task:
-            1. STRICTLY Detect the language (TH/EN).
+            1. STRICTLY Detect the language (TH/EN) based on the latest input.
             2. Detect if the user explicitly asks for "FREE" courses (e.g. "free", "no cost", "ฟรี", "ไม่เสียตัง").
-            3. Extract Current & Target roles.
+            3. Extract Current & Target roles. If not explicitly stated in the latest message, infer from CONTEXT (history).
             4. Analyze skill gap.
             5. Create Roadmap.
             6. Identify TOP 5 CRITICAL missing skills.
@@ -93,8 +120,8 @@ class SkillEngine:
                - "วิทยาศาสตร์ข้อมูล" (Better use "Data Science")
 
             ### OUTPUT FORMAT RULES ###
-            - 'summary': Write a motivating roadmap.
-            - 'missing_skills': Extract exactly 5 skills.
+            - 'summary': Write a motivating roadmap. If the user is just chatting, answer normally but keep the JSON structure (put the answer in summary).
+            - 'missing_skills': Extract exactly 5 skills. If no specific skills needed (just chat), return empty list.
             
             Return ONLY a JSON object:
             {{
@@ -113,43 +140,62 @@ class SkillEngine:
                 ]
             }}
             """,
-            input_variables=["user_message"]
+                ),
+                MessagesPlaceholder(variable_name="history"),
+                ("human", "{user_message}"),
+            ]
         )
-        # Prevent JSON injection issues by simple bracket replacement if needed, 
+
+        # Prevent JSON injection issues by simple bracket replacement if needed,
         # though langchain handles most sanitization.
         safe_message = user_message.replace("{", "(").replace("}", ")")
-        chain = prompt | self.llm | parser
-        return chain.invoke({"user_message": safe_message})
 
-    def analyze_and_recommend(self, user_message: str) -> Dict[str, Any]:
+        chain = prompt | self.llm | parser
+
+        wrapped_chain = RunnableWithMessageHistory(
+            chain,
+            self.get_session_history,
+            input_messages_key="user_message",
+            history_messages_key="history",
+            output_messages_key="summary",
+        )
+
+        return wrapped_chain.invoke(
+            {"user_message": safe_message},
+            config={"configurable": {"session_id": session_id}},
+        )
+
+    def analyze_and_recommend(
+        self, user_message: str, session_id: str = "default_session"
+    ) -> Dict[str, Any]:
         """Main entry point for analysis and course recommendation."""
-        analysis_result = self._extract_and_analyze(user_message)
+        analysis_result = self._extract_and_analyze(user_message, session_id)
         user_lang = analysis_result.get("detected_language", "TH").upper()
-        
+
         prefer_free = analysis_result.get("preference_free", False)
-        
+
         missing_skills_data = analysis_result.get("missing_skills", [])[:5]
         recommendations = []
-        
+
         if self.db:
             for item in missing_skills_data:
-                term_en = item.get('search_term_en', '')
-                term_th = item.get('search_term_th', '')
-                display_name = item.get('display_name', term_en)
-                
+                term_en = item.get("search_term_en", "")
+                term_th = item.get("search_term_th", "")
+                display_name = item.get("display_name", term_en)
+
                 logger.debug(f"Searching: EN='{term_en}' | TH='{term_th}'")
-                
+
                 results: List[Tuple[Document, float]] = []
                 try:
                     # similarity_search_with_score returns (Document, score) where score is distance (lower is better)
                     if term_en:
                         res_en = self.db.similarity_search_with_score(term_en, k=25)
                         results.extend(res_en)
-                    
+
                     if term_th and term_th != term_en:
                         res_th = self.db.similarity_search_with_score(term_th, k=25)
                         results.extend(res_th)
-                        
+
                 except Exception as e:
                     logger.error(f"Search Error for term '{display_name}': {e}")
                     results = []
@@ -160,27 +206,27 @@ class SkillEngine:
                     url = doc.metadata.get("url")
                     if url not in unique_results or score < unique_results[url][1]:
                         unique_results[url] = (doc, score)
-                
+
                 final_results = list(unique_results.values())
 
                 free_courses = []
                 thai_courses = []
                 other_courses = []
-                
+
                 for doc, score in final_results:
                     # Filter out poor matches (arbitrary threshold, kept from original code)
-                    if score > 20.0: 
+                    if score > 20.0:
                         continue
-                    
+
                     # Log successful finds at debug level
                     # logger.debug(f"Found: [{score:.4f}] {doc.metadata.get('title')}")
-                    
+
                     raw_duration = str(doc.metadata.get("duration", ""))
-                    if raw_duration.lower() == 'nan' or not raw_duration:
+                    if raw_duration.lower() == "nan" or not raw_duration:
                         display_duration = "Self-paced"
                     else:
                         display_duration = raw_duration
-                    
+
                     course_data = {
                         "title": doc.metadata.get("title"),
                         "url": doc.metadata.get("url"),
@@ -190,50 +236,53 @@ class SkillEngine:
                         "duration": display_duration,
                         "image_url": doc.metadata.get("image_url", ""),
                         "source": doc.metadata.get("source", ""),
-                        "score": score
+                        "score": score,
                     }
 
                     source = course_data["source"]
                     title = course_data["title"]
                     price = str(course_data["price"]).lower()
-                    
-                    if source == 'Khan Academy' or 'free' in price:
+
+                    if source == "Khan Academy" or "free" in price:
                         free_courses.append(course_data)
-                    elif source in ['SkillLane', 'FutureSkill'] or self._is_thai_content(title):
+                    elif source in [
+                        "SkillLane",
+                        "FutureSkill",
+                    ] or self._is_thai_content(title):
                         thai_courses.append(course_data)
                     else:
                         other_courses.append(course_data)
-                
+
                 # Selection Logic
                 final_selection = []
-                
-                free_courses.sort(key=lambda x: x['score'])
-                thai_courses.sort(key=lambda x: x['score'])
-                other_courses.sort(key=lambda x: x['score'])
-                
+
+                free_courses.sort(key=lambda x: x["score"])
+                thai_courses.sort(key=lambda x: x["score"])
+                other_courses.sort(key=lambda x: x["score"])
+
                 if prefer_free:
                     final_selection.extend(free_courses)
                     if len(final_selection) < 2:
                         needed = 2 - len(final_selection)
-                        if user_lang == 'TH':
+                        if user_lang == "TH":
                             final_selection.extend(thai_courses[:needed])
                         else:
                             final_selection.extend(other_courses[:needed])
-                            
+
                 else:
-                    if user_lang == 'TH':
+                    if user_lang == "TH":
                         final_selection.extend(thai_courses)
                         if len(final_selection) < 2:
                             needed = 2 - len(final_selection)
                             inter_mix = other_courses + free_courses
-                            inter_mix.sort(key=lambda x: x['score'])
+                            inter_mix.sort(key=lambda x: x["score"])
                             final_selection.extend(inter_mix[:needed])
                     else:
                         final_selection.extend(other_courses)
                         if len(final_selection) < 2:
                             needed = 2 - len(final_selection)
                             inter_mix = free_courses + thai_courses
-                            inter_mix.sort(key=lambda x: x['score'])
+                            inter_mix.sort(key=lambda x: x["score"])
                             final_selection.extend(inter_mix[:needed])
 
                 best_courses = final_selection[:2]
@@ -241,28 +290,30 @@ class SkillEngine:
                 # Fallback if no courses found
                 if not best_courses:
                     encoded_query = term_en.replace(" ", "%20")
-                    best_courses = [{
-                        "title": f"Search '{display_name}' on Google",
-                        "url": f"https://www.google.com/search?q={encoded_query}+course",
-                        "level": "External Search",
-                        "duration": "-",
-                        "score": 0,
-                        "image_url": ""
-                    }]
-                
-                recommendations.append({
-                    "skill_gap": display_name,
-                    "suggested_courses": best_courses
-                })
+                    best_courses = [
+                        {
+                            "title": f"Search '{display_name}' on Google",
+                            "url": f"https://www.google.com/search?q={encoded_query}+course",
+                            "level": "External Search",
+                            "duration": "-",
+                            "score": 0,
+                            "image_url": "",
+                        }
+                    ]
 
-        return {    
+                recommendations.append(
+                    {"skill_gap": display_name, "suggested_courses": best_courses}
+                )
+
+        return {
             "user_intent": {
                 "detected_current_role": analysis_result.get("current_role"),
-                "detected_target_role": analysis_result.get("target_role")
+                "detected_target_role": analysis_result.get("target_role"),
             },
             "analysis_summary": analysis_result.get("summary"),
-            "recommendations": recommendations
+            "recommendations": recommendations,
         }
+
 
 if __name__ == "__main__":
     try:
